@@ -664,7 +664,7 @@ public class BaremetalCloudAgentTemplate implements Describable<BaremetalCloudAg
 
             try {
                 for (Subnet subnet : client.getSubNetList(vcnCompartmentId, vcnId)) {
-                    if (subnet.getAvailabilityDomain().equals(availableDomain)) {
+                    if (null == subnet.getAvailabilityDomain() || subnet.getAvailabilityDomain().equals(availableDomain)) {
                         model.add(subnet.getDisplayName(), subnet.getId());
                     }
                 }
