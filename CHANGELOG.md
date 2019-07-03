@@ -3,6 +3,20 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/).
 
+## 1.0.5 - July 2019
+
+### Added
+- Jenkins Master's IP Address to the Instance Names in OCI i.e. jenkins-**12.191.12.125**-182258c6-7dc7-4d8c-acce-1a292a56cfaa.
+- Regional subnets in the Virtual Networking service support.
+- OCI Java SDK 1.5.11
+
+### Changed
+- Default values for **Instance Creation Timeout** and **Instance SSH Connection Timeout** to 900.
+
+### Fixed
+- OCI Slaves removing from Jenkins when Jenkins loses Network Connectivity.
+
+
 ## 1.0.4 - November 2018
 ### Fixed
 - Compartments listed are no longer limited to 25 values.

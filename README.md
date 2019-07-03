@@ -9,7 +9,8 @@ A Jenkins master instance with Oracle Cloud Infrastructure Compute Plugin can sp
 - [Prerequisites](#prerequisites)
 - [Compatibility](#compatibility)
 - [Installation](#installation)
-- [Building the Plugin from Repository](building_the_plugin_from_repository)
+- [Building the Plugin](building_the_plugin)
+- [Upgrade](#upgrade)
 - [Configuration](#configuration)
 - [Licensing](#licensing)
 - [Changelog](#changelog)
@@ -29,7 +30,7 @@ View Oracle Cloud Infrastructure Compute Plugin page on the [plugins.jenkins.io]
 2. Jenkins installed with JDK 8 or higher.
 
 ## Compatibility
-1. Plugin is tested on minimum Jenkins version 1.625.3, it may not work with versions early than 1.554.
+1. Plugin is tested on minimum Jenkins version 1.625.3, it may not work with versions earlier than 1.554.
 2. For Jenkins versions between 1.554 and 1.625, pre-install 'bouncycastle API Plugin' plugin.
 
 
@@ -83,10 +84,10 @@ The master will need to be restarted before the plugin is loaded and made availa
 
 
 
-## Building the Plugin from Repository
+## Building the Plugin
 Jenkins plugins are packaged as self-contained .hpi files, which have all the necessary code, images, and other resources which the plugin needs to operate successfully. 
 
-If desired, you can build the Oracle Cloud Infrastructure Compute Plugin Plugin .hpi from the source code, and then install the .hpi file in Jenkins.
+If desired, you can build the Oracle Cloud Infrastructure Compute Plugin .hpi from the source code, and then install the .hpi file in Jenkins.
 
 To build the .hpi file, OCI Java SDK is required. OCI Java SDK is currently not published to Maven center so first install OCI Java SDK to the local Maven repository. Steps are outlined below.
 
@@ -101,13 +102,12 @@ Refer to OCI Java SDK licensing [here](https://github.com/oracle/oci-java-sdk/bl
 
 
 
-
 ##### Compile the Plugin
 1. git clone repo 
 2. Update pom.xml with OCI Java SDK version you have installed
 
 	```
-	<oci-java-sdk.version>1.3.1</oci-java-sdk.version>
+	<oci-java-sdk.version>1.5.11</oci-java-sdk.version>
  	```
 
 3. Compile and Install package
@@ -131,6 +131,10 @@ The System Administrator can copy the .hpi file into the JENKINS_HOME/plugins di
 The master will need to be restarted before the plugin is loaded and made available in the Jenkins environment.
 
 
+## Upgrade
+Updates are listed in the Updates tab of the **Manage Plugins** page and can be installed by checking the checkbox of the Oracle Cloud Infrastructure Compute plugin updates and clicking the **Download now and install after restart** button.
+
+**Note**: A plugin version with new functionality may only take effect on Slaves built with that new version. You may need to remove older Slaves.
 
 ## Configuration 
 
@@ -176,8 +180,8 @@ The master will need to be restarted before the plugin is loaded and made availa
 5. Click **Advanced** for more options:
    - **Remote FS root** - Dedicated directory for Jenkins agent in instance.
    - **Remote SSH user** - ssh user used for Jenkins master to access instance. The ssh user should have written permission on Remote FS root directory.
-   - **Instance Creation Timeout** - Number of seconds to wait for instance to reach state "ready", default value is 300. 
-   - **Instance SSH Connection Timeout** - Number of seconds to wait for instance from state "ready" to be able to ssh connect from Jenkins master. Default value is 60.
+   - **Instance Creation Timeout** - Number of seconds to wait for instance to reach state "Running". Default value is 900. 
+   - **Instance SSH Connection Timeout** - Number of seconds to wait for instance from state "Running" to be able to ssh connect from Jenkins master. Default value is 900.
    - **Idle Termination Minutes** - Number of minutes for Jenkins to wait before deleting and completely removing an idle instance. A value of 0 (or an empty string) indicates that instance will never be stopped/deleted. 
    - **Number of Executors** - Number of concurrent builds that Jenkins can perform. Value should be at least 1.
    - **Init Script** - You can define several lines of shell based commands to configure the instance (one-time) before the Jenkins Job runs. For example, if the image selected does not have Java pre-installed, you can add command "sudo yum -y install java"
@@ -197,7 +201,7 @@ See [LICENSE.txt](https://github.com/oracle/oci-compute-jenkins-plugin/blob/mast
 
 ## Changelog
 
-For Changelog please refer to [CHANGELOG.md](https://github.com/oracle/oci-compute-jenkins-plugin/blob/master/CHANGELOG.md).
+For CHANGELOG please refer to [CHANGELOG.md](https://github.com/oracle/oci-compute-jenkins-plugin/blob/master/CHANGELOG.md).
 
 ## Contributing
 Oracle Cloud Infrastructure Compute Plugin is an open source project. See [CONTRIBUTING.md](https://github.com/oracle/oci-compute-jenkins-plugin/blob/master/CONTRIBUTING.md) for more details.
