@@ -191,7 +191,7 @@ Updates are listed in the Updates tab of the **Manage Plugins** page and can be 
 6. Click **Save** or **Apply**
 
 ## Licensing
-Copyright (c) 2018, Oracle and/or its affiliates. All rights reserved.
+Copyright (c) 2018,2019 Oracle and/or its affiliates. All rights reserved.
 
 This Plugin is licensed under the Universal Permissive License 1.0
 
