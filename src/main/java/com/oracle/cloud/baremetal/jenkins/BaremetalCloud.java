@@ -1,5 +1,10 @@
 package com.oracle.cloud.baremetal.jenkins;
 
+import static com.cloudbees.plugins.credentials.CredentialsMatchers.anyOf;
+import static com.cloudbees.plugins.credentials.CredentialsMatchers.instanceOf;
+import com.cloudbees.plugins.credentials.CredentialsProvider;
+import com.cloudbees.plugins.credentials.common.StandardListBoxModel;
+import com.cloudbees.plugins.credentials.domains.DomainRequirement;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -25,10 +30,10 @@ import org.kohsuke.stapler.StaplerRequest;
 import org.kohsuke.stapler.StaplerResponse;
 
 import com.oracle.bmc.core.model.Instance;
-import com.oracle.bmc.model.BmcException;
 import com.oracle.cloud.baremetal.jenkins.client.BaremetalCloudClient;
 import com.oracle.cloud.baremetal.jenkins.client.BaremetalCloudClientFactory;
 import com.oracle.cloud.baremetal.jenkins.client.SDKBaremetalCloudClientFactory;
+import com.oracle.cloud.baremetal.jenkins.credentials.BaremetalCloudCredentials;
 import com.oracle.cloud.baremetal.jenkins.retry.LinearRetry;
 import com.oracle.cloud.baremetal.jenkins.retry.Retry;
 import com.oracle.cloud.baremetal.jenkins.ssh.SshConnector;
@@ -43,15 +48,18 @@ import hudson.model.Failure;
 import hudson.model.Label;
 import hudson.model.Node;
 import hudson.model.Descriptor.FormException;
+import hudson.model.Item;
+import hudson.security.ACL;
 import hudson.slaves.AbstractCloudImpl;
 import hudson.slaves.Cloud;
 import hudson.slaves.NodeProvisioner.PlannedNode;
 import hudson.util.FormValidation;
 import hudson.util.HttpResponses;
-import hudson.util.Secret;
+import hudson.util.ListBoxModel;
 import jenkins.model.Jenkins;
 
 import static java.lang.Math.toIntExact;
+import org.kohsuke.stapler.AncestorInPath;
 
 
 public class BaremetalCloud extends AbstractCloudImpl{
@@ -90,12 +98,7 @@ public class BaremetalCloud extends AbstractCloudImpl{
     /** The prefix with Jenkins Master IP to add to the names of created instances. */
     private static final String JENKINS_IP = getJenkinsIp();
 
-    private final String fingerprint;
-    private final String apikey;
-    private final String passphrase;
-    private final String tenantId;
-    private final String userId;
-    private final String regionId;
+    private final String credentialsId;
     private final String maxAsyncThreads;
     private final int nextTemplateId;
     private final List<? extends BaremetalCloudAgentTemplate> templates;
@@ -103,24 +106,14 @@ public class BaremetalCloud extends AbstractCloudImpl{
     @DataBoundConstructor
     public BaremetalCloud(
             String cloudName,
-            String fingerprint,
-            String apikey,
-            String passphrase,
-            String tenantId,
-            String userId,
-            String regionId,
+            String credentialsId,
             String instanceCapStr,
             String maxAsyncThreads,
             int nextTemplateId,
             List<? extends BaremetalCloudAgentTemplate> templates) {
         super(cloudNameToName(cloudName), instanceCapStr);
 
-        this.fingerprint = fingerprint;
-        this.apikey = getEncryptedValue(apikey);
-        this.passphrase = getEncryptedValue(passphrase);
-        this.tenantId = tenantId;
-        this.userId = userId;
-        this.regionId = regionId;
+        this.credentialsId = credentialsId;
         this.maxAsyncThreads = maxAsyncThreads;
         this.nextTemplateId = nextTemplateId;
         if (templates == null) {
@@ -139,29 +132,10 @@ public class BaremetalCloud extends AbstractCloudImpl{
     	return nameToCloudName(name);
     }
 
-    public String getFingerprint() {
-        return fingerprint;
+    public String getCredentialsId() {
+        return credentialsId;
     }
 
-    public String getApikey() {
-        return getPlainText(apikey);
-    }
-
-    public String getPassphrase() {
-        return getPlainText(passphrase);
-    }
-
-    public String getTenantId() {
-        return tenantId;
-    }
-
-    public String getUserId() {
-        return userId;
-    }
-
-    public String getRegionId() {
-        return regionId;
-    }
     public String getMaxAsyncThreads() {
         return maxAsyncThreads;
     }
@@ -171,14 +145,6 @@ public class BaremetalCloud extends AbstractCloudImpl{
 
     public List<? extends BaremetalCloudAgentTemplate> getTemplates() {
         return templates;
-    }
-
-    protected String getEncryptedValue(String str) {
-        return Secret.fromString(str).getEncryptedValue();
-    }
-
-    protected String getPlainText(String str) {
-        return  str == null ? null : Secret.decrypt(str).getPlainText();
     }
 
     ExecutorService getThreadPoolForRemoting() {
@@ -471,7 +437,7 @@ public class BaremetalCloud extends AbstractCloudImpl{
 
     public BaremetalCloudClient getClient(){
         BaremetalCloudClientFactory factory = SDKBaremetalCloudClientFactory.INSTANCE;
-        return factory.createClient(fingerprint, getApikey(), getPassphrase(), tenantId, userId, regionId, Integer.parseInt(maxAsyncThreads));
+        return factory.createClient(credentialsId, Integer.parseInt(maxAsyncThreads));
     }
 
     private synchronized int getNodeCount() {
@@ -596,40 +562,26 @@ public class BaremetalCloud extends AbstractCloudImpl{
             return FormValidation.ok();
         }
 
+        public ListBoxModel doFillCredentialsIdItems(@AncestorInPath Item context, @QueryParameter String credentialsId) {
+            StandardListBoxModel result = new StandardListBoxModel();
+            Jenkins instance = Jenkins.getInstance();
+            if (context != null && instance != null ) {
+                if (!context.hasPermission(Item.EXTENDED_READ) && !context.hasPermission(CredentialsProvider.USE_ITEM)) {
+                    return result.includeCurrentValue(credentialsId);
+                }
+            } else {
+                if (instance != null && !instance.hasPermission(Jenkins.ADMINISTER)) {
+                    return result.includeCurrentValue(credentialsId);
+                }
+            }
+
+            List<DomainRequirement> domainRequirements = new ArrayList<>();
+
+            return result.includeMatchingAs(ACL.SYSTEM, context, BaremetalCloudCredentials.class, domainRequirements, anyOf(instanceOf(BaremetalCloudCredentials.class)));
+        }
+
         public static FormValidation withContext(FormValidation fv, String context) {
             return FormValidation.error(JenkinsUtil.unescape(fv.getMessage()) + ": " + context);
         }
-
-        /**
-         * Test connection from configuration page.
-         * @param fingerprint fingerprint
-         * @param apikey apikey
-         * @param passphrase passphrase
-         * @param tenantId tenant id
-         * @param userId User credentials
-         * @param regionId region Id
-         * @param maxAsyncThreads maxAsyncThreads
-         * @return FormValidation
-         */
-        public FormValidation doTestConnection(
-                @QueryParameter String fingerprint,
-                @QueryParameter String apikey,
-                @QueryParameter String passphrase,
-                @QueryParameter String tenantId,
-                @QueryParameter String userId,
-                @QueryParameter String regionId,
-                @QueryParameter String maxAsyncThreads) {
-
-            BaremetalCloudClientFactory factory = SDKBaremetalCloudClientFactory.INSTANCE;
-            BaremetalCloudClient client = factory.createClient(fingerprint, apikey, passphrase, tenantId, userId, regionId, Integer.parseInt(maxAsyncThreads));
-            try{
-                client.authenticate();
-                return FormValidation.ok(Messages.BaremetalCloud_testConnection_success());
-            }catch(BmcException e){
-                LOGGER.log(Level.FINE, "Failed to connect to Oracle Cloud Infrastructure, Please verify all the credential informations enterred", e);
-                return FormValidation.error(Messages.BaremetalCloud_testConnection_unauthorized());
-            }
-        }
     }
-
 }

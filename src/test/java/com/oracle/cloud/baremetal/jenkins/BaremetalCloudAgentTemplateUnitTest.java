@@ -4,6 +4,7 @@ import static com.oracle.cloud.baremetal.jenkins.BaremetalCloudTestUtils.API_KEY
 import static com.oracle.cloud.baremetal.jenkins.BaremetalCloudTestUtils.FINGERPRINT;
 import static com.oracle.cloud.baremetal.jenkins.BaremetalCloudTestUtils.TENANT_ID;
 import static com.oracle.cloud.baremetal.jenkins.BaremetalCloudTestUtils.USER_ID;
+import static com.oracle.cloud.baremetal.jenkins.BaremetalCloudTestUtils.CREDENTIALS_ID;
 
 import java.io.IOException;
 import java.lang.reflect.Method;
@@ -348,7 +349,8 @@ public class BaremetalCloudAgentTemplateUnitTest {
         final BaremetalCloudClientFactory factory = mockery.mock(BaremetalCloudClientFactory.class);
         final BaremetalCloudClient client = mockery.mock(BaremetalCloudClient.class);
         mockery.checking(new Expectations() {{
-            allowing(factory).createClient(FINGERPRINT, API_KEY, "", TENANT_ID, USER_ID, "us-phoenix-1", 50); will(returnValue(client));
+//            allowing(factory).createClient(FINGERPRINT, API_KEY, "", TENANT_ID, USER_ID, "us-phoenix-1", 50); will(returnValue(client));
+        allowing(factory).createClient(CREDENTIALS_ID, 50); will(returnValue(client));
         }});
 
     }

@@ -10,12 +10,7 @@ import com.oracle.cloud.baremetal.jenkins.retry.Retry;
 public class TestBaremetalCloud extends BaremetalCloud{
     public static class Builder {
         String cloudName = "cloudName";
-        String fingerprint;
-        String apikey;
-        String passphrase;
-        String tenantId;
-        String userId;
-        String regionId;
+        String credentialsId;
         String instanceCapStr;
         String maxAsyncThreads;
         int nextTemplateId;
@@ -28,33 +23,8 @@ public class TestBaremetalCloud extends BaremetalCloud{
             return this;
         }
 
-        public Builder fingerprint(String fingerprint){
-            this.fingerprint = fingerprint;
-            return this;
-        }
-
-        public Builder apikey(String apikey){
-            this.apikey = apikey;
-            return this;
-        }
-
-        public Builder passphrase(String passphrase){
-            this.passphrase = passphrase;
-            return this;
-        }
-
-        public Builder tenantId(String tenantId){
-            this.tenantId = tenantId;
-            return this;
-        }
-
-        public Builder userId(String userId){
-            this.userId = userId;
-            return this;
-        }
-
-        public Builder regionId(String regionId){
-            this.regionId = regionId;
+        public Builder credentialsId(String CredentialsId) {
+            this.credentialsId = credentialsId;
             return this;
         }
 
@@ -100,12 +70,7 @@ public class TestBaremetalCloud extends BaremetalCloud{
     public TestBaremetalCloud(Builder builder){
         super(
                 builder.cloudName,
-                builder.fingerprint,
-                builder.passphrase,
-                builder.tenantId,
-                builder.userId,
-                builder.userId,
-                builder.regionId,
+                builder.credentialsId,
                 builder.instanceCapStr,
                 builder.maxAsyncThreads,
                 builder.nextTemplateId,
@@ -116,16 +81,6 @@ public class TestBaremetalCloud extends BaremetalCloud{
     @Override
     public BaremetalCloudClient getClient() {
         return Objects.requireNonNull(client, "client");
-    }
-
-    @Override
-    public String getEncryptedValue(String str) {
-        return str;
-    }
-
-    @Override
-    public String getPlainText(String str) {
-        return str;
     }
 
     @Override

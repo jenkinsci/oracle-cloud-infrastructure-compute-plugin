@@ -1,5 +1,8 @@
 package com.oracle.cloud.baremetal.jenkins;
 
+import com.cloudbees.plugins.credentials.CredentialsMatchers;
+import com.cloudbees.plugins.credentials.CredentialsProvider;
+import com.cloudbees.plugins.credentials.domains.DomainRequirement;
 import java.io.IOException;
 import java.security.KeyPair;
 import java.security.PublicKey;
@@ -28,6 +31,7 @@ import com.oracle.bmc.identity.model.Compartment;
 import com.oracle.cloud.baremetal.jenkins.client.BaremetalCloudClient;
 import com.oracle.cloud.baremetal.jenkins.client.BaremetalCloudClientFactory;
 import com.oracle.cloud.baremetal.jenkins.client.SDKBaremetalCloudClientFactory;
+import com.oracle.cloud.baremetal.jenkins.credentials.BaremetalCloudCredentials;
 
 import hudson.Extension;
 import hudson.RelativePath;
@@ -36,10 +40,13 @@ import hudson.model.Descriptor;
 import hudson.model.Label;
 import hudson.model.Node;
 import hudson.model.labels.LabelAtom;
+import hudson.security.ACL;
 import hudson.util.FormValidation;
 import hudson.util.ListBoxModel;
 import hudson.util.Secret;
+import java.util.Collections;
 import jenkins.bouncycastle.api.PEMEncodable;
+import jenkins.model.Jenkins;
 
 public class BaremetalCloudAgentTemplate implements Describable<BaremetalCloudAgentTemplate>{
     private static final Logger LOGGER = Logger.getLogger(BaremetalCloud.class.getName());
@@ -357,19 +364,13 @@ public class BaremetalCloudAgentTemplate implements Describable<BaremetalCloudAg
         }
 
         public FormValidation doCheckAssignPublicIP(
-                @QueryParameter @RelativePath("..") String userId,
-                @QueryParameter @RelativePath("..") String fingerprint,
-                @QueryParameter @RelativePath("..") String tenantId,
-                @QueryParameter @RelativePath("..") String apikey,
-                @QueryParameter @RelativePath("..") String passphrase,
-                @QueryParameter @RelativePath("..") String regionId,
+                @QueryParameter @RelativePath("..") String credentialsId,
                 @QueryParameter @RelativePath("..") String maxAsyncThreads,
                 @QueryParameter String compartmentId,
                 @QueryParameter String subnetId,
                 @QueryParameter Boolean assignPublicIP) {
                if (subnetId != null && !subnetId.equals("") && (assignPublicIP == null || assignPublicIP)) {
-
-                   BaremetalCloudClient client = getClient(fingerprint, apikey, passphrase, tenantId, userId, regionId, maxAsyncThreads);
+                   BaremetalCloudClient client = getClient(credentialsId, maxAsyncThreads);
 
                    try{
                        GetSubnetResponse subnetResponse = client.getSubNet(subnetId);
@@ -406,95 +407,90 @@ public class BaremetalCloudAgentTemplate implements Describable<BaremetalCloudAg
             return JenkinsUtil.getDescriptorOrDie(BaremetalCloud.class, BaremetalCloud.DescriptorImpl.class);
         }
 
-        private static BaremetalCloudClient getClient(String fingerprint, String apikey, String passphrase, String tenantId, String userId, String regionId, String maxAsyncThreads){
+        private static BaremetalCloudClient getClient(String credentialsId, String maxAsyncThreads){
             BaremetalCloudClientFactory factory = SDKBaremetalCloudClientFactory.INSTANCE;
-            return factory.createClient(fingerprint, apikey, passphrase, tenantId, userId, regionId, Integer.parseInt(maxAsyncThreads));
+            return factory.createClient(credentialsId, Integer.parseInt(maxAsyncThreads));
         }
 
         public ListBoxModel doFillCompartmentIdItems(
-                @QueryParameter @RelativePath("..") String userId,
-                @QueryParameter @RelativePath("..") String fingerprint,
-                @QueryParameter @RelativePath("..") String tenantId,
-                @QueryParameter @RelativePath("..") String apikey,
-                @QueryParameter @RelativePath("..") String passphrase,
-                @QueryParameter @RelativePath("..") String regionId,
+                @QueryParameter @RelativePath("..") String credentialsId,
                 @QueryParameter @RelativePath("..") String maxAsyncThreads)
                         throws IOException, ServletException {
             ListBoxModel model = new ListBoxModel();
             model.add("<Select a compartmentId>", "");
 
-            if (anyRequiredFieldEmpty(userId, fingerprint, tenantId, apikey, regionId)) {
+            if (anyRequiredFieldEmpty(credentialsId)) {
                 return model;
             }
 
-            BaremetalCloudClient client = getClient(fingerprint, apikey, passphrase, tenantId, userId, regionId, maxAsyncThreads);
-
+            BaremetalCloudCredentials credentials = CredentialsMatchers.firstOrNull(
+                    CredentialsProvider.lookupCredentials(BaremetalCloudCredentials.class, Jenkins.getInstance(), ACL.SYSTEM, Collections.<DomainRequirement>emptyList()),
+                    CredentialsMatchers.withId(credentialsId));
+            BaremetalCloudClient client = getClient(credentialsId, maxAsyncThreads);
             try{
-                List<Compartment> compartmentIds = client.getCompartmentsList(tenantId);
-                for (Compartment compartmentId : compartmentIds) {
-                    model.add(compartmentId.getName(), compartmentId.getId());
+                if (credentials != null ){
+                    List<Compartment> compartmentIds = client.getCompartmentsList(credentials.getTenantId());
+                    for (Compartment compartmentId : compartmentIds) {
+                        model.add(compartmentId.getName(), compartmentId.getId());
+                    }
                 }
             }catch (Exception e) {
                 LOGGER.log(Level.WARNING, "Failed to get compartment list", e);
             }
-
             return model;
         }
 
         public ListBoxModel doFillAvailableDomainItems(
-                @QueryParameter @RelativePath("..") String fingerprint,
-                @QueryParameter @RelativePath("..") String apikey,
-                @QueryParameter @RelativePath("..") String passphrase,
-                @QueryParameter @RelativePath("..") String tenantId,
-                @QueryParameter @RelativePath("..") String userId,
-                @QueryParameter @RelativePath("..") String regionId,
+                @QueryParameter @RelativePath("..") String credentialsId,
                 @QueryParameter @RelativePath("..") String maxAsyncThreads,
                 @QueryParameter String compartmentId) {
-            ListBoxModel items = new ListBoxModel();
-            if (anyRequiredFieldEmpty(userId, fingerprint, tenantId, apikey, regionId, compartmentId)) {
-                return items;
+            ListBoxModel model = new ListBoxModel();
+
+            if (anyRequiredFieldEmpty(credentialsId, compartmentId)) {
+                model.add("<First select 'Compartment'>", "");
+                return model;
             }
 
-            BaremetalCloudClient client = getClient(fingerprint, apikey, passphrase, tenantId, userId, regionId, maxAsyncThreads);
+            BaremetalCloudClient client = getClient(credentialsId, maxAsyncThreads);
 
             try {
                 List<AvailabilityDomain> listDomains = client.getAvailabilityDomainsList(compartmentId);
                 List<String>  lstDomain = new ArrayList<String>();
                 for (AvailabilityDomain domain : listDomains) {
                     if (lstDomain.indexOf(domain.getName()) < 0) {
-                        items.add(domain.getName(), domain.getName());
+                        model.add(domain.getName(), domain.getName());
                         lstDomain.add(domain.getName());
                     }
                 }
-                return items;
+                return model;
             } catch (Exception e) {
                 LOGGER.log(Level.WARNING, "Failed to get AvailableDomain list", e);
-                return items;
+                return model;
             }
         }
 
         public ListBoxModel doFillImageCompartmentIdItems(
-                @QueryParameter @RelativePath("..") String userId,
-                @QueryParameter @RelativePath("..") String fingerprint,
-                @QueryParameter @RelativePath("..") String tenantId,
-                @QueryParameter @RelativePath("..") String apikey,
-                @QueryParameter @RelativePath("..") String passphrase,
-                @QueryParameter @RelativePath("..") String regionId,
+                @QueryParameter @RelativePath("..") String credentialsId,
                 @QueryParameter @RelativePath("..") String maxAsyncThreads,
                 @QueryParameter String compartmentId) throws IOException, ServletException {
             ListBoxModel model = new ListBoxModel();
             model.add("Default", compartmentId);
 
-            if (anyRequiredFieldEmpty(userId, fingerprint, tenantId, apikey, regionId)) {
+            if (anyRequiredFieldEmpty(credentialsId, compartmentId)) {
                 return model;
             }
 
-            BaremetalCloudClient client = getClient(fingerprint, apikey, passphrase, tenantId, userId, regionId, maxAsyncThreads);
+            BaremetalCloudClient client = getClient(credentialsId, maxAsyncThreads);
+            BaremetalCloudCredentials credentials = CredentialsMatchers.firstOrNull(
+                    CredentialsProvider.lookupCredentials(BaremetalCloudCredentials.class, Jenkins.getInstance(), ACL.SYSTEM, Collections.<DomainRequirement>emptyList()),
+                    CredentialsMatchers.withId(credentialsId));
 
             try{
-                List<Compartment> compartmentIds = client.getCompartmentsList(tenantId);
-                for (Compartment compartment : compartmentIds) {
-                    model.add(compartment.getName(), compartment.getId());
+                if (credentials != null) {
+                    List<Compartment> compartmentIds = client.getCompartmentsList(credentials.getTenantId());
+                    for (Compartment compartment : compartmentIds) {
+                        model.add(compartment.getName(), compartment.getId());
+                    }
                 }
             }catch (Exception e) {
                 LOGGER.log(Level.WARNING, "Failed to get compartment list", e);
@@ -504,25 +500,20 @@ public class BaremetalCloudAgentTemplate implements Describable<BaremetalCloudAg
         }
 
         public ListBoxModel doFillImageIdItems(
-                @QueryParameter @RelativePath("..") String userId,
-                @QueryParameter @RelativePath("..") String fingerprint,
-                @QueryParameter @RelativePath("..") String tenantId,
-                @QueryParameter @RelativePath("..") String apikey,
-                @QueryParameter @RelativePath("..") String passphrase,
-                @QueryParameter @RelativePath("..") String regionId,
+                @QueryParameter @RelativePath("..") String credentialsId,
                 @QueryParameter @RelativePath("..") String maxAsyncThreads,
                 @QueryParameter String compartmentId,
                 @QueryParameter String imageCompartmentId) throws IOException, ServletException {
             ListBoxModel model = new ListBoxModel();
             model.add("<Select an Image>", "");
-            if (anyRequiredFieldEmpty(userId, fingerprint, tenantId, apikey, regionId, compartmentId)) {
+            if (anyRequiredFieldEmpty(credentialsId, compartmentId)) {
                 return model;
             }
             if (anyRequiredFieldEmpty(imageCompartmentId)) {
                 imageCompartmentId = compartmentId;
             }
 
-            BaremetalCloudClient client = getClient(fingerprint, apikey, passphrase, tenantId, userId, regionId, maxAsyncThreads);
+            BaremetalCloudClient client = getClient(credentialsId, maxAsyncThreads);
 
             try {
                 List<String>  lstImage = new ArrayList<String>();
@@ -540,12 +531,7 @@ public class BaremetalCloudAgentTemplate implements Describable<BaremetalCloudAg
         }
 
         public ListBoxModel doFillShapeItems(
-                @QueryParameter @RelativePath("..") String userId,
-                @QueryParameter @RelativePath("..") String fingerprint,
-                @QueryParameter @RelativePath("..") String tenantId,
-                @QueryParameter @RelativePath("..") String apikey,
-                @QueryParameter @RelativePath("..") String passphrase,
-                @QueryParameter @RelativePath("..") String regionId,
+                @QueryParameter @RelativePath("..") String credentialsId,
                 @QueryParameter @RelativePath("..") String maxAsyncThreads,
                 @QueryParameter String compartmentId,
                 @QueryParameter String availableDomain,
@@ -554,11 +540,11 @@ public class BaremetalCloudAgentTemplate implements Describable<BaremetalCloudAg
             ListBoxModel model = new ListBoxModel();
             model.add("<First select 'Availablity Domain' and 'Image' above>", "");
 
-            if (anyRequiredFieldEmpty(userId, fingerprint, tenantId, apikey, regionId, compartmentId, imageId)) {
+            if (anyRequiredFieldEmpty(credentialsId, compartmentId, imageId)) {
                 return model;
             }
 
-            BaremetalCloudClient client = getClient(fingerprint, apikey, passphrase, tenantId, userId, regionId, maxAsyncThreads);
+            BaremetalCloudClient client = getClient(credentialsId, maxAsyncThreads);
 
             try {
                 List<String>  lstShape = new ArrayList<String>();
@@ -577,26 +563,25 @@ public class BaremetalCloudAgentTemplate implements Describable<BaremetalCloudAg
         }
 
         public ListBoxModel doFillVcnCompartmentIdItems(
-                @QueryParameter @RelativePath("..") String userId,
-                @QueryParameter @RelativePath("..") String fingerprint,
-                @QueryParameter @RelativePath("..") String tenantId,
-                @QueryParameter @RelativePath("..") String apikey,
-                @QueryParameter @RelativePath("..") String passphrase,
-                @QueryParameter @RelativePath("..") String regionId,
+                @QueryParameter @RelativePath("..") String credentialsId,
                 @QueryParameter @RelativePath("..") String maxAsyncThreads,
                 @QueryParameter String compartmentId) throws IOException, ServletException {
             ListBoxModel model = new ListBoxModel();
             model.add("Default", compartmentId);
 
-            if (anyRequiredFieldEmpty(userId, fingerprint, tenantId, apikey, regionId)) {
+            if (anyRequiredFieldEmpty(credentialsId)) {
                 return model;
             }
 
-            BaremetalCloudClient client = getClient(fingerprint, apikey, passphrase, tenantId, userId, regionId, maxAsyncThreads);
-
+            BaremetalCloudClient client = getClient(credentialsId, maxAsyncThreads);
+            BaremetalCloudCredentials credentials = CredentialsMatchers.firstOrNull(
+                    CredentialsProvider.lookupCredentials(BaremetalCloudCredentials.class, Jenkins.getInstance(), ACL.SYSTEM, Collections.<DomainRequirement>emptyList()),
+                    CredentialsMatchers.withId(credentialsId));
             try{
-                for (Compartment compartment : client.getCompartmentsList(tenantId)) {
-                    model.add(compartment.getName(), compartment.getId());
+                if (credentials != null) {
+                    for (Compartment compartment : client.getCompartmentsList(credentials.getTenantId())) {
+                        model.add(compartment.getName(), compartment.getId());
+                    }
                 }
             }catch (Exception e) {
                 LOGGER.log(Level.WARNING, "Failed to get compartment list", e);
@@ -605,19 +590,14 @@ public class BaremetalCloudAgentTemplate implements Describable<BaremetalCloudAg
             return model;
         }
         public ListBoxModel doFillVcnIdItems(
-                @QueryParameter @RelativePath("..") String userId,
-                @QueryParameter @RelativePath("..") String fingerprint,
-                @QueryParameter @RelativePath("..") String tenantId,
-                @QueryParameter @RelativePath("..") String apikey,
-                @QueryParameter @RelativePath("..") String passphrase,
-                @QueryParameter @RelativePath("..") String regionId,
+                @QueryParameter @RelativePath("..") String credentialsId,
                 @QueryParameter @RelativePath("..") String maxAsyncThreads,
                 @QueryParameter String compartmentId,
                 @QueryParameter String vcnCompartmentId) throws IOException, ServletException {
             ListBoxModel model = new ListBoxModel();
             model.add("<Select a Virtual Cloud Network>", "");
 
-            if (anyRequiredFieldEmpty(userId, fingerprint, tenantId, apikey, regionId, compartmentId)) {
+            if (anyRequiredFieldEmpty(credentialsId, compartmentId)) {
                 return model;
             }
 
@@ -625,7 +605,7 @@ public class BaremetalCloudAgentTemplate implements Describable<BaremetalCloudAg
                 vcnCompartmentId = compartmentId;
             }
 
-            BaremetalCloudClient client = getClient(fingerprint, apikey, passphrase, tenantId, userId, regionId, maxAsyncThreads);
+            BaremetalCloudClient client = getClient(credentialsId, maxAsyncThreads);
 
             try {
                 for (Vcn vcnId : client.getVcnList(vcnCompartmentId)) {
@@ -638,12 +618,7 @@ public class BaremetalCloudAgentTemplate implements Describable<BaremetalCloudAg
         }
 
         public ListBoxModel doFillSubnetIdItems(
-                @QueryParameter @RelativePath("..") String userId,
-                @QueryParameter @RelativePath("..") String fingerprint,
-                @QueryParameter @RelativePath("..") String tenantId,
-                @QueryParameter @RelativePath("..") String apikey,
-                @QueryParameter @RelativePath("..") String passphrase,
-                @QueryParameter @RelativePath("..") String regionId,
+                @QueryParameter @RelativePath("..") String credentialsId,
                 @QueryParameter @RelativePath("..") String maxAsyncThreads,
                 @QueryParameter String availableDomain,
                 @QueryParameter String vcnId,
@@ -652,7 +627,7 @@ public class BaremetalCloudAgentTemplate implements Describable<BaremetalCloudAg
             ListBoxModel model = new ListBoxModel();
             model.add("<First select 'Availablity Domain' and 'Virtual Cloud Network' above>", "");
 
-            if (anyRequiredFieldEmpty(userId, fingerprint, tenantId, apikey, regionId, availableDomain, vcnId, compartmentId)) {
+            if (anyRequiredFieldEmpty(credentialsId, availableDomain, vcnId, compartmentId)) {
                 return model;
             }
 
@@ -660,7 +635,7 @@ public class BaremetalCloudAgentTemplate implements Describable<BaremetalCloudAg
                 vcnCompartmentId = compartmentId;
             }
 
-            BaremetalCloudClient client = getClient(fingerprint, apikey, passphrase, tenantId, userId, regionId, maxAsyncThreads);
+            BaremetalCloudClient client = getClient(credentialsId, maxAsyncThreads);
 
             try {
                 for (Subnet subnet : client.getSubNetList(vcnCompartmentId, vcnId)) {

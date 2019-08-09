@@ -46,7 +46,7 @@ public class BaremetalCloudTestUtils {
     public static final String USER_ID = "ocid1.user.oc1..aaaaaaaanpyla23uskodpmr3snhyxzfslbhwgi6ly7fbacaasrtlaou4lnra";
     public static final String USER_ID2 = "ocid1.user.oc1..aaaaaaaag6d5vhblrvpni5cwnsboum7i2itqw5deo4zrfdac5dqsw3nfkcfq";
     public static final String REGION_ID = "us-phoenix-1";
-
+    public static final String CREDENTIALS_ID = "1";
     /**
      * Similar to {@link hudson.model.Label#parse} but does not use
      * {@link Jenkins#getInstance}.
