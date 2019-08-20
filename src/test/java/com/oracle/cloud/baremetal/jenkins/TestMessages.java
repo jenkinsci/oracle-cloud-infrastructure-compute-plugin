@@ -55,7 +55,7 @@ public class TestMessages {
             resourceBundleHolderOwnerField.setAccessible(true);
             resourceBundleHolderOwnerField.set(holder, resourceClassLoader.defineClass(messagesClass));
 
-            BaremetalCloudAgentTemplate.ConfigMessages.holder.classLoader = resourceClassLoader;
+//            BaremetalCloudAgentTemplate.ConfigMessages.holder.classLoader = resourceClassLoader;
         } catch (Exception e) {
             throw new Error(e);
         }

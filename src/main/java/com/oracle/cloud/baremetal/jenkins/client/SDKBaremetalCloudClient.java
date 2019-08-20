@@ -142,7 +142,7 @@ public class SDKBaremetalCloudClient implements BaremetalCloudClient {
             String subnetIdStr = template.getSubnet();
             String imageIdStr = template.getImage();
             String shape = template.getShape();
-            String sshPublicKey = template.getSshPublickey();
+            String sshPublicKey = template.getPublicKey();
             String instanceName = name;
 
             boolean assignPublicIP = true;
@@ -187,7 +187,6 @@ public class SDKBaremetalCloudClient implements BaremetalCloudClient {
             throw new Exception("Instance creation fails because: " + ex.getMessage());
         }
     }
-
 
     @Override
     public void close() throws Exception {

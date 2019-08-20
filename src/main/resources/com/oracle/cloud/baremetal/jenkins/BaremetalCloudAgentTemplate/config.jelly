@@ -1,5 +1,12 @@
 <?jelly escape-by-default='true'?>
-<j:jelly xmlns:j="jelly:core" xmlns:st="jelly:stapler" xmlns:d="jelly:define" xmlns:l="/lib/layout" xmlns:t="/lib/hudson" xmlns:f="/lib/form" xmlns:x="/com/oracle/cloud/baremetal/jenkins/lib">
+<j:jelly xmlns:j="jelly:core"
+         xmlns:st="jelly:stapler"
+         xmlns:d="jelly:define"
+         xmlns:l="/lib/layout"
+         xmlns:t="/lib/hudson"
+         xmlns:f="/lib/form"
+         xmlns:x="/com/oracle/cloud/baremetal/jenkins/lib"
+         xmlns:c="/lib/credentials">
   <table width="100%"> 
 	  <f:entry title="${%description}" field="description">
 	    <f:textbox />
@@ -61,12 +68,11 @@
       <f:entry title="${%usePublicIP}" field="usePublicIP">
          <f:checkbox default='true'/>
       </f:entry>
-      
-	  <f:entry title="${%sshPublickey}" field="sshPublickey">
-	    <f:textarea style="height:100px;"/>
+	  
+          <f:entry title="${%sshCredentialsId}" field="sshCredentialsId">
+	    <c:select expressionAllowed="false"/>
 	  </f:entry>
-	
-	 <f:entry title="${%sshPrivatekey}" field="sshPrivatekey">
+	<!-- <f:entry title="${%sshPrivatekey}" field="sshPrivatekey">
 	    <f:textarea style="height:100px;"/>
 	  </f:entry>
 
@@ -74,16 +80,16 @@
                   progress="${%verifySshKeyPair.progress}"
                   method="verifySshKeyPair"
                   with="sshPublickey,sshPrivatekey"
-                  help="${descriptor.getHelpFile('verifySshKeyPair')}" />
+                  help="${descriptor.getHelpFile('verifySshKeyPair')}" /> -->
 
 	  <f:advanced>
 		  <f:entry title="${%remoteFS}" field="remoteFS">
 		    <f:textbox default="/tmp"/>
 		  </f:entry>
 		  
-		  <f:entry title="${%sshUser}" field="sshUser">
+		 <!-- <f:entry title="${%sshUser}" field="sshUser">
 		    <f:textbox default="opc"/>
-		  </f:entry>
+		  </f:entry> -->
       
 		  <f:entry title="${%startTimeoutSeconds}" field="startTimeoutSeconds">
         	<f:textbox default="900" />

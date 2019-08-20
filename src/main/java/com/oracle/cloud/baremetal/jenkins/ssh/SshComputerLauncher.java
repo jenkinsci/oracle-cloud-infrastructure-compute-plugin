@@ -1,5 +1,9 @@
 package com.oracle.cloud.baremetal.jenkins.ssh;
 
+import com.cloudbees.jenkins.plugins.sshcredentials.SSHUserPrivateKey;
+import com.cloudbees.plugins.credentials.CredentialsMatchers;
+import com.cloudbees.plugins.credentials.CredentialsProvider;
+import com.cloudbees.plugins.credentials.domains.DomainRequirement;
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
@@ -18,14 +22,18 @@ import hudson.model.Slave;
 import hudson.model.TaskListener;
 import hudson.remoting.Channel;
 import hudson.remoting.Channel.Listener;
+import hudson.security.ACL;
 import hudson.slaves.ComputerLauncher;
 import hudson.slaves.SlaveComputer;
+import java.util.Collections;
+import jenkins.model.Jenkins;
 
 public class SshComputerLauncher extends ComputerLauncher {
     private static final Logger LOGGER = Logger.getLogger(SshComputerLauncher.class.getName());
 
     public static final String DEFAULT_SSH_USER = "opc";
     public static final int DEFAULT_SSH_PORT = 22;
+    public static final String DEFAULT_SSH_PUBLIC_KEY = " ";
 
     private final String host;
     private final int sshPort;
@@ -36,31 +44,41 @@ public class SshComputerLauncher extends ComputerLauncher {
 
     private final String initScript;
     private final int initScriptTimeoutSeconds;
+    private transient SSHUserPrivateKey sshCredentials;
 
     public SshComputerLauncher(
             final String host,
             final int connectTimeoutMillis,
-            final String privateKey,
             final String initScript,
             final int initScriptTimeoutSeconds,
-            final String sshUser) {
-        this(host, connectTimeoutMillis, privateKey, initScript, initScriptTimeoutSeconds, sshUser, DEFAULT_SSH_PORT);
+            final String sshCredentialsId) {
+        this(host, connectTimeoutMillis, initScript, initScriptTimeoutSeconds, sshCredentialsId, DEFAULT_SSH_PORT);
     }
 
     public SshComputerLauncher(
             final String host,
             final int connectTimeoutMillis,
-            final String privateKey,
             final String initScript,
             final int initScriptTimeoutSeconds,
-            final String sshUser,
+            final String sshCredentialsId,
             final int sshPort) {
+        this.sshCredentials = CredentialsMatchers.firstOrNull(
+            CredentialsProvider.lookupCredentials(SSHUserPrivateKey.class, Jenkins.getInstance(), ACL.SYSTEM, Collections.<DomainRequirement>emptyList()),
+            CredentialsMatchers.withId(sshCredentialsId));
         this.host = host;
         this.connectTimeoutMillis = connectTimeoutMillis;
-        this.privateKey = privateKey;
+        if (sshCredentials != null) {
+            this.privateKey = sshCredentials.getPrivateKey();
+        } else {
+            this.privateKey = DEFAULT_SSH_PUBLIC_KEY;
+        }
         this.initScript = initScript;
         this.initScriptTimeoutSeconds = initScriptTimeoutSeconds;
-        this.sshUser = sshUser;
+        if (sshCredentials != null) {
+            this.sshUser = sshCredentials.getUsername();
+        } else {
+            this.sshUser = DEFAULT_SSH_USER;
+        }
         this.sshPort = sshPort;
     }
 

@@ -2,6 +2,7 @@ package com.oracle.cloud.baremetal.jenkins;
 
 import com.cloudbees.plugins.credentials.CredentialsMatchers;
 import com.cloudbees.plugins.credentials.CredentialsProvider;
+import com.cloudbees.plugins.credentials.common.StandardListBoxModel;
 import com.cloudbees.plugins.credentials.domains.DomainRequirement;
 import java.io.IOException;
 import java.security.KeyPair;
@@ -15,6 +16,8 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import com.cloudbees.jenkins.plugins.sshcredentials.SSHAuthenticator;
+import com.cloudbees.jenkins.plugins.sshcredentials.SSHUserPrivateKey;
 
 import javax.servlet.ServletException;
 
@@ -37,6 +40,7 @@ import hudson.Extension;
 import hudson.RelativePath;
 import hudson.model.Describable;
 import hudson.model.Descriptor;
+import hudson.model.Item;
 import hudson.model.Label;
 import hudson.model.Node;
 import hudson.model.labels.LabelAtom;
@@ -45,8 +49,8 @@ import hudson.util.FormValidation;
 import hudson.util.ListBoxModel;
 import hudson.util.Secret;
 import java.util.Collections;
-import jenkins.bouncycastle.api.PEMEncodable;
 import jenkins.model.Jenkins;
+import org.kohsuke.stapler.AncestorInPath;
 
 public class BaremetalCloudAgentTemplate implements Describable<BaremetalCloudAgentTemplate>{
     private static final Logger LOGGER = Logger.getLogger(BaremetalCloud.class.getName());
@@ -60,9 +64,7 @@ public class BaremetalCloudAgentTemplate implements Describable<BaremetalCloudAg
     public final String imageCompartmentId;
     public final String imageId;
     public final String shape;
-    public final String sshPublickey;
-    public final String sshPrivatekey;
-
+    public final String sshCredentialsId;
     public final String description;
     public final String labelString;
     public transient Collection<LabelAtom> labelAtoms;
@@ -72,7 +74,6 @@ public class BaremetalCloudAgentTemplate implements Describable<BaremetalCloudAg
     public final String idleTerminationMinutes;
     public final int templateId;
     public final String remoteFS;
-    public final String sshUser;
     public final Boolean assignPublicIP;
     public final Boolean usePublicIP;
     public final String startTimeoutSeconds;
@@ -93,11 +94,9 @@ public class BaremetalCloudAgentTemplate implements Describable<BaremetalCloudAg
             final String imageCompartmentId,
             final String imageId,
             final String shape,
-            final String sshPublickey,
-            final String sshPrivatekey,
+            final String sshCredentialsId,
             final String description,
             final String remoteFS,
-            final String sshUser,
             final Boolean assignPublicIP,
             final Boolean usePublicIP,
             final String numExecutors,
@@ -118,11 +117,9 @@ public class BaremetalCloudAgentTemplate implements Describable<BaremetalCloudAg
         this.imageCompartmentId = imageCompartmentId;
         this.imageId = imageId;
         this.shape = shape;
-        this.sshPublickey = sshPublickey;
-        this.sshPrivatekey = getEncryptedValue(sshPrivatekey);
+        this.sshCredentialsId = sshCredentialsId;
         this.description = description;
         this.remoteFS = remoteFS;
-        this.sshUser = sshUser;
         this.assignPublicIP=assignPublicIP;
         this.usePublicIP=usePublicIP;
         this.numExecutors = numExecutors;
@@ -137,7 +134,6 @@ public class BaremetalCloudAgentTemplate implements Describable<BaremetalCloudAg
         this.instanceCap = instanceCap;
     }
 
-
     public String getcompartmentId() {
         return compartmentId;
     }
@@ -149,6 +145,7 @@ public class BaremetalCloudAgentTemplate implements Describable<BaremetalCloudAg
     public String getVcnCompartmentId() {
         return vcnCompartmentId;
     }
+
     public String getVcn() {
         return vcnId;
     }
@@ -169,15 +166,8 @@ public class BaremetalCloudAgentTemplate implements Describable<BaremetalCloudAg
         return shape;
     }
 
-    public String getSshPublickey() {
-        return sshPublickey;
-    }
-
-    public String getSshPrivatekey() {
-        String decryptedKey = getPlainText(sshPrivatekey);
-        // We stored the private key with clear text prior to release 1.0.1,
-        // which can not be decrypted, so return it directly.
-        return decryptedKey == null ? sshPrivatekey : decryptedKey;
+    public String getSshCredentialsId() {
+        return sshCredentialsId;
     }
 
     public String getDisplayName() {
@@ -192,16 +182,12 @@ public class BaremetalCloudAgentTemplate implements Describable<BaremetalCloudAg
         return remoteFS;
     }
 
-    public String getSshUser() {
-        return sshUser;
-    }
-
     public Boolean getAssignPublicIP() {
-    		return assignPublicIP;
+    	return assignPublicIP;
     }
 
     public Boolean getUsePublicIP() {
-    		return usePublicIP;
+    	return usePublicIP;
     }
 
     public int getNumExecutors() {
@@ -226,19 +212,6 @@ public class BaremetalCloudAgentTemplate implements Describable<BaremetalCloudAg
 
     public String getLabelString() {
         return labelString;
-    }
-
-    protected String getEncryptedValue(String str) {
-        return str == null ? null : Secret.fromString(str).getEncryptedValue();
-    }
-
-    protected static String getPlainText(String str) {
-        if (str == null) {
-            return null;
-        }
-
-        Secret secret = Secret.decrypt(str);
-        return secret == null ? null : secret.getPlainText();
     }
 
     Collection<LabelAtom> parseLabels(String labels) {
@@ -298,6 +271,17 @@ public class BaremetalCloudAgentTemplate implements Describable<BaremetalCloudAg
         return instanceCap;
     }
 
+    public String getPublicKey() throws IOException {
+        SSHUserPrivateKey sshCredentials = CredentialsMatchers.firstOrNull(
+            CredentialsProvider.lookupCredentials(SSHUserPrivateKey.class, Jenkins.getInstance(), ACL.SYSTEM, Collections.<DomainRequirement>emptyList()),
+            CredentialsMatchers.withId(this.sshCredentialsId));
+        if (sshCredentials != null) {
+            return SshKeyUtil.getPublicKey(sshCredentials.getPrivateKey(), Secret.toString(sshCredentials.getPassphrase()));
+        } else {
+            return null;
+        }
+    }
+
     private static FormValidationValue<Integer> checkInitScriptTimeoutSeconds(String value){
         return FormValidationValue.validateNonNegativeInteger(value, 120);
     }
@@ -329,14 +313,6 @@ public class BaremetalCloudAgentTemplate implements Describable<BaremetalCloudAg
 
     public synchronized String getDisableCause() {
         return disableCause;
-    }
-
-    static class ConfigMessages {
-        static final DynamicResourceBundleHolder holder = DynamicResourceBundleHolder.get(BaremetalCloudAgentTemplate.class, "config");
-
-        public static String sshPrivatekey() {
-            return holder.format("sshPrivatekey");
-        }
     }
 
     @Extension
@@ -648,78 +624,25 @@ public class BaremetalCloudAgentTemplate implements Describable<BaremetalCloudAg
             }
             return model;
         }
-
-        PEMEncodable decodePEM(String pem) throws UnrecoverableKeyException, IOException {
-            return PEMEncodable.decode(pem);
-        }
-
-        private FormValidationValue<RSAPublicKey> checkPrivateKey(String value, boolean withContext) {
-            FormValidation fv = JenkinsUtil.validateRequired(value);
-            if (fv.kind != FormValidation.Kind.OK) {
-                return FormValidationValue.error(withContext ? BaremetalCloud.DescriptorImpl.withContext(fv, ConfigMessages.sshPrivatekey()) : fv);
+        
+        public ListBoxModel doFillSshCredentialsIdItems(
+                @AncestorInPath Item context, 
+                @QueryParameter String sshCredentialsId) {
+            StandardListBoxModel result = new StandardListBoxModel();
+            Jenkins instance = Jenkins.getInstance();
+            if (context == null) {
+                if (instance != null && !instance.hasPermission(Jenkins.ADMINISTER)) {
+                    return result.includeCurrentValue(sshCredentialsId);
+                }
+            } else {
+                if (!context.hasPermission(Item.EXTENDED_READ) && !context.hasPermission(CredentialsProvider.USE_ITEM)) {
+                    return result.includeCurrentValue(sshCredentialsId);
+                }
             }
 
-            PEMEncodable encodable;
-            try {
-                encodable = decodePEM(value);
-            } catch (NullPointerException e) {
-                // Workaround https://issues.jenkins-ci.org/browse/JENKINS-41978
-                LOGGER.log(Level.FINE, "Failed to parse private key", e);
-                return FormValidationValue.error(Messages.BaremetalCloudAgentTemplate_privateKey_invalid());
-            } catch (UnrecoverableKeyException e) {
-                LOGGER.log(Level.FINE, "Failed to parse private key", e);
-                return FormValidationValue.error(Messages.BaremetalCloudAgentTemplate_privateKey_unable(e.toString()));
-            } catch (IOException e) {
-                LOGGER.log(Level.FINE, "Failed to parse private key", e);
-                return FormValidationValue.error(Messages.BaremetalCloudAgentTemplate_privateKey_unable(e.getMessage()));
-            }
-
-            KeyPair keyPair = encodable.toKeyPair();
-            if (keyPair == null) {
-                LOGGER.log(Level.FINE, "toKeyPair returned null for {0}", encodable.getRawObject());
-                return FormValidationValue.error(Messages.BaremetalCloudAgentTemplate_privateKey_invalid());
-            }
-
-            PublicKey publicKey = keyPair.getPublic();
-            if (!(publicKey instanceof RSAPublicKey)) {
-                LOGGER.log(Level.FINE, "getPublic returned non-RSAPublicKey {0} for {1}",
-                        new Object[] { publicKey, encodable.getRawObject() });
-                return FormValidationValue.error(Messages.BaremetalCloudAgentTemplate_privateKey_invalid());
-            }
-
-            RSAPublicKey rsaPublicKey = (RSAPublicKey)publicKey;
-            return FormValidationValue.ok(rsaPublicKey);
-        }
-
-        public FormValidation doCheckSshPrivatekey(@QueryParameter String value) {
-            return checkPrivateKey(value, false).getFormValidation();
-        }
-
-        private FormValidation newUnableToVerifySshKeyPairFormValidation(FormValidation fv) {
-            return FormValidation.error(Messages.BaremetalCloudAgentTemplate_verifySshKeyPair_unable(JenkinsUtil.unescape(fv.getMessage())));
-        }
-
-        public FormValidation doVerifySshKeyPair(
-                @QueryParameter String sshPublickey,
-                @QueryParameter String sshPrivatekey) {
-            String sshPrivatekeyValue = sshPublickey.trim();
-            if (sshPrivatekeyValue.trim().isEmpty()) {
-                return FormValidation.error(Messages.BaremetalCloudAgentTemplate_verifySshKeyPair_publicKeyEmpty());
-            }
-
-            FormValidationValue<RSAPublicKey> privateKeyValid = checkPrivateKey(sshPrivatekey, true);
-            if (!privateKeyValid.isOk()) {
-                return newUnableToVerifySshKeyPairFormValidation(privateKeyValid.getFormValidation());
-            }
-
-            String sshString = SshKeyUtil.toSshString(privateKeyValid.getValue());
-            int lengh = sshString.length();
-            if (!sshPrivatekeyValue.startsWith(sshString) || sshPrivatekeyValue.length() > lengh && sshPrivatekeyValue.charAt(lengh) != ' ') {
-                return FormValidation.error(Messages.BaremetalCloudAgentTemplate_verifySshKeyPair_mismatch());
-            }
-
-            return FormValidation.ok(Messages.BaremetalCloudAgentTemplate_verifySshKeyPair_success());
-        }
+            List<DomainRequirement> domainRequirements = new ArrayList<DomainRequirement>();
+            return result.includeMatchingAs(ACL.SYSTEM, context, SSHUserPrivateKey.class, domainRequirements, SSHAuthenticator.matcher());
+}
 
         public FormValidation doCheckLabelString(@QueryParameter String value, @QueryParameter Node.Mode mode) {
             if (mode == Node.Mode.EXCLUSIVE && (value == null || value.trim().isEmpty())) {

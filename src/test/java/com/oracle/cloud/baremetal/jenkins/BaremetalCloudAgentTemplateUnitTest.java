@@ -85,11 +85,11 @@ public class BaremetalCloudAgentTemplateUnitTest {
         Assert.assertEquals("rfs", new TestBaremetalCloudAgentTemplate.Builder().remoteFS("rfs").build().getRemoteFS());
     }
 
-    @Test
+    /*@Test
     public void testGetSshUser() {
         Assert.assertNull(new TestBaremetalCloudAgentTemplate().getSshUser());
         Assert.assertEquals("u", new TestBaremetalCloudAgentTemplate.Builder().sshUser("u").build().getSshUser());
-    }
+    }*/
 
     @Test
     public void testGetNumExecutorsValue() {
@@ -164,28 +164,28 @@ public class BaremetalCloudAgentTemplateUnitTest {
         Assert.assertEquals("1", new TestBaremetalCloudAgentTemplate.Builder().sshConnectTimeoutSeconds("1").build().getSshConnectTimeoutSeconds());
     }
 
-    @Test
+    /*@Test
     public void testGetSshPublickey() {
         Assert.assertNull(new TestBaremetalCloudAgentTemplate().getSshPublickey());
         Assert.assertEquals("skn", new TestBaremetalCloudAgentTemplate.Builder().sshPublickey("skn").build().getSshPublickey());
-    }
+    }*/
 
-    @Test
+    /*@Test
     public void testGetSshPrivateKey() {
         Assert.assertNull(new TestBaremetalCloudAgentTemplate().getSshPrivatekey());
         Assert.assertEquals("pk", new TestBaremetalCloudAgentTemplate.Builder().sshPrivatekey("pk").build().getSshPrivatekey());
-    }
+    }*/
 
-    @Test
+    /*@Test
     public void testGetPlanText() {
         Assert.assertNull(BaremetalCloudAgentTemplate.getPlainText("abc"));
-    }
+    }*/
 
-    @Test
+    /*@Test
     public void testGetSshNotEncryptedPrivateKey() {
         Assert.assertNull(new TestBaremetalCloudAgentTemplate.Builder().encryptSshPrivateKey(false).build().getSshPrivatekey());
         Assert.assertEquals("pk", new TestBaremetalCloudAgentTemplate.Builder().sshPrivatekey("pk").encryptSshPrivateKey(false).build().getSshPrivatekey());
-    }
+    }*/
 
     @Test
     public void testGetInitScript() {
@@ -214,14 +214,14 @@ public class BaremetalCloudAgentTemplateUnitTest {
         Assert.assertEquals(TimeUnit.SECONDS.toNanos(1), new TestBaremetalCloudAgentTemplate.Builder().startTimeoutSeconds("1").build().getStartTimeoutNanos());
     }
 
-    @Test
+    /*@Test
     public void testConfigMessages() throws Exception {
         for (Method method : BaremetalCloudAgentTemplate.ConfigMessages.class.getMethods()) {
             if (Modifier.isStatic(method.getModifiers())) {
                 Assert.assertNotNull(method.invoke(null));
             }
         }
-    }
+    }*/
 
     @Test
     public void testGetDefaultNumExecutors() {
@@ -291,18 +291,18 @@ public class BaremetalCloudAgentTemplateUnitTest {
     // Extracted from private key: ssh-keygen -y -f privkey.pem
     private static final String TEST_PUBLIC_KEY_SSH = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAAAYQCphMI+vErH97+bZKJWc8ADbw7PzwxgUsQvANRarF0Poaxmv4/yQf0fsVz0r6/2tSlmj4pV6oQC7fPuyyH4OE21MXYV1XVSbqYWuycAVAgR/OwxVUM3OcKiSeyeoiBmTTc=";
 
-    @Test
+    /*@Test
     public void testDoCheckPrivateKey() throws Exception {
         Assert.assertEquals(FormValidation.Kind.ERROR, new BaremetalCloudAgentTemplate.DescriptorImpl().doCheckSshPrivatekey(null).kind);
         Assert.assertEquals(FormValidation.Kind.ERROR, new BaremetalCloudAgentTemplate.DescriptorImpl().doCheckSshPrivatekey("").kind);
     }
 
-    private static FormValidation doVerifySshKeyPair(TestBaremetalCloudAgentTemplate.TestDescriptor.PEMDecoder pemDecoder) {
-        return new TestBaremetalCloudAgentTemplate.TestDescriptor.Builder()
-                .pemDecoder(pemDecoder)
-                .build().doVerifySshKeyPair(TEST_PUBLIC_KEY_SSH,TEST_PRIVATE_KEY_PEM);
-    }
-
+    //private static FormValidation doVerifySshKeyPair(TestBaremetalCloudAgentTemplate.TestDescriptor.PEMDecoder pemDecoder) {
+    //    return new TestBaremetalCloudAgentTemplate.TestDescriptor.Builder()
+    //            .pemDecoder(pemDecoder)
+    //           .build().doVerifySshKeyPair(TEST_PUBLIC_KEY_SSH,TEST_PRIVATE_KEY_PEM);
+    //}
+    /*
     @Test
     public void testDoVerifySshKeyPairUnrecoverableKeyException() throws Exception {
         Assert.assertEquals(FormValidation.Kind.ERROR, doVerifySshKeyPair(new TestBaremetalCloudAgentTemplate.TestDescriptor.PEMDecoder() {
@@ -354,7 +354,7 @@ public class BaremetalCloudAgentTemplateUnitTest {
         }});
 
     }
-
+    */
     @Test
     public void testDoCheckStartTimeoutSeconds() {
         Assert.assertEquals(FormValidation.Kind.ERROR, new TestBaremetalCloudAgentTemplate.DescriptorImpl().doCheckStartTimeoutSeconds(null).kind);

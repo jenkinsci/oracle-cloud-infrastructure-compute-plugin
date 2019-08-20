@@ -59,7 +59,7 @@ public class BaremetalCloudAgent extends AbstractCloudSlave{
     			name,
     			template.getDescription(),
                 template.getRemoteFS(),
-                template.getSshUser(),
+                template.getSshCredentialsId(),
                 template.getAssignPublicIP(),
                 template.getUsePublicIP(),
                 template.getNumExecutors(),
@@ -73,7 +73,6 @@ public class BaremetalCloudAgent extends AbstractCloudSlave{
                 template.getInitScript(),
                 template.getInitScriptTimeoutSeconds(),
                 host,
-                template.getSshPrivatekey(),
                 template.getTemplateId());
     }
 
@@ -81,7 +80,7 @@ public class BaremetalCloudAgent extends AbstractCloudSlave{
     public BaremetalCloudAgent(final String name,
             final String description,
             final String remoteFS,
-            final String sshUser,
+            final String sshCredentialsId,
             final Boolean assignPublicIP,
             final Boolean usePrivateIP,
             final int numExecutors,
@@ -95,7 +94,6 @@ public class BaremetalCloudAgent extends AbstractCloudSlave{
             final String initScript,
             final int initScriptTimeoutSeconds,
             final String host,
-            final String sskPrivatekey,
             final int templateId) throws IOException, FormException{
     	super(name,
                 description,
@@ -106,10 +104,9 @@ public class BaremetalCloudAgent extends AbstractCloudSlave{
                 new SshComputerLauncher(
                         host,
                         sshConnectTimeoutMillis,
-                        sskPrivatekey,
                         initScript,
                         initScriptTimeoutSeconds,
-                        sshUser),
+                        sshCredentialsId),
                 createRetentionStrategy(idleTerminationMinutes),
                 nodeProperties);
     	this.cloudName = cloudName;
