@@ -50,10 +50,10 @@ import com.oracle.bmc.identity.IdentityAsyncClient;
 import com.oracle.bmc.identity.IdentityClient;
 import com.oracle.bmc.identity.model.AvailabilityDomain;
 import com.oracle.bmc.identity.model.Compartment;
+import com.oracle.bmc.identity.requests.GetTenancyRequest;
 import com.oracle.bmc.identity.requests.GetUserRequest;
 import com.oracle.bmc.identity.requests.ListAvailabilityDomainsRequest;
 import com.oracle.bmc.identity.requests.ListCompartmentsRequest;
-import com.oracle.bmc.identity.requests.ListRegionsRequest;
 import com.oracle.bmc.identity.responses.ListCompartmentsResponse;
 import com.oracle.bmc.model.BmcException;
 import com.oracle.cloud.baremetal.jenkins.BaremetalCloudAgentTemplate;
@@ -167,7 +167,7 @@ public class SDKBaremetalCloudClient implements BaremetalCloudClient {
             if (!instancePrincipals) {
                 identityClient.getUser(GetUserRequest.builder().userId(provider.getUserId()).build());
             } else {
-                identityClient.listRegions(ListRegionsRequest.builder().build());
+                identityClient.getTenancy(GetTenancyRequest.builder().tenancyId(instancePrincipalsTenantId).build());
             }
         }catch(BmcException e){
             LOGGER.log(Level.FINE, "Failed to connect to Oracle Cloud Infrastructure, Please verify all the credential informations enterred", e);
