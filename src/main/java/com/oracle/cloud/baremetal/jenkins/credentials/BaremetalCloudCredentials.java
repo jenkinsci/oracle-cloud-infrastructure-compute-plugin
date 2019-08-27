@@ -16,4 +16,6 @@ public interface BaremetalCloudCredentials extends StandardCredentials {
 
     public String getRegionId();
 
+    public boolean isInstancePrincipals();
+
 }

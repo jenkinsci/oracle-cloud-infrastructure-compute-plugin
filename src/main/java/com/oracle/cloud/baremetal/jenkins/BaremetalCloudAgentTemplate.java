@@ -5,13 +5,8 @@ import com.cloudbees.plugins.credentials.CredentialsProvider;
 import com.cloudbees.plugins.credentials.common.StandardListBoxModel;
 import com.cloudbees.plugins.credentials.domains.DomainRequirement;
 import java.io.IOException;
-import java.security.KeyPair;
-import java.security.PublicKey;
-import java.security.UnrecoverableKeyException;
-import java.security.interfaces.RSAPublicKey;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
@@ -34,7 +29,6 @@ import com.oracle.bmc.identity.model.Compartment;
 import com.oracle.cloud.baremetal.jenkins.client.BaremetalCloudClient;
 import com.oracle.cloud.baremetal.jenkins.client.BaremetalCloudClientFactory;
 import com.oracle.cloud.baremetal.jenkins.client.SDKBaremetalCloudClientFactory;
-import com.oracle.cloud.baremetal.jenkins.credentials.BaremetalCloudCredentials;
 
 import hudson.Extension;
 import hudson.RelativePath;
@@ -399,16 +393,10 @@ public class BaremetalCloudAgentTemplate implements Describable<BaremetalCloudAg
                 return model;
             }
 
-            BaremetalCloudCredentials credentials = CredentialsMatchers.firstOrNull(
-                    CredentialsProvider.lookupCredentials(BaremetalCloudCredentials.class, Jenkins.getInstance(), ACL.SYSTEM, Collections.<DomainRequirement>emptyList()),
-                    CredentialsMatchers.withId(credentialsId));
-            BaremetalCloudClient client = getClient(credentialsId, maxAsyncThreads);
             try{
-                if (credentials != null ){
-                    List<Compartment> compartmentIds = client.getCompartmentsList(credentials.getTenantId());
-                    for (Compartment compartmentId : compartmentIds) {
-                        model.add(compartmentId.getName(), compartmentId.getId());
-                    }
+                BaremetalCloudClient client = getClient(credentialsId, maxAsyncThreads);
+                for (Compartment compartmentId : client.getCompartmentsList()) {
+                    model.add(compartmentId.getName(), compartmentId.getId());
                 }
             }catch (Exception e) {
                 LOGGER.log(Level.WARNING, "Failed to get compartment list", e);
@@ -427,12 +415,10 @@ public class BaremetalCloudAgentTemplate implements Describable<BaremetalCloudAg
                 return model;
             }
 
-            BaremetalCloudClient client = getClient(credentialsId, maxAsyncThreads);
-
             try {
-                List<AvailabilityDomain> listDomains = client.getAvailabilityDomainsList(compartmentId);
+                BaremetalCloudClient client = getClient(credentialsId, maxAsyncThreads);
                 List<String>  lstDomain = new ArrayList<String>();
-                for (AvailabilityDomain domain : listDomains) {
+                for (AvailabilityDomain domain : client.getAvailabilityDomainsList(compartmentId)) {
                     if (lstDomain.indexOf(domain.getName()) < 0) {
                         model.add(domain.getName(), domain.getName());
                         lstDomain.add(domain.getName());
@@ -456,18 +442,12 @@ public class BaremetalCloudAgentTemplate implements Describable<BaremetalCloudAg
                 return model;
             }
 
-            BaremetalCloudClient client = getClient(credentialsId, maxAsyncThreads);
-            BaremetalCloudCredentials credentials = CredentialsMatchers.firstOrNull(
-                    CredentialsProvider.lookupCredentials(BaremetalCloudCredentials.class, Jenkins.getInstance(), ACL.SYSTEM, Collections.<DomainRequirement>emptyList()),
-                    CredentialsMatchers.withId(credentialsId));
-
             try{
-                if (credentials != null) {
-                    List<Compartment> compartmentIds = client.getCompartmentsList(credentials.getTenantId());
-                    for (Compartment compartment : compartmentIds) {
+                BaremetalCloudClient client = getClient(credentialsId, maxAsyncThreads);
+
+                for (Compartment compartment : client.getCompartmentsList()) {
                         model.add(compartment.getName(), compartment.getId());
                     }
-                }
             }catch (Exception e) {
                 LOGGER.log(Level.WARNING, "Failed to get compartment list", e);
             }
@@ -489,12 +469,11 @@ public class BaremetalCloudAgentTemplate implements Describable<BaremetalCloudAg
                 imageCompartmentId = compartmentId;
             }
 
-            BaremetalCloudClient client = getClient(credentialsId, maxAsyncThreads);
-
             try {
+                BaremetalCloudClient client = getClient(credentialsId, maxAsyncThreads);
                 List<String>  lstImage = new ArrayList<String>();
-                List<Image> list = client.getImagesList(imageCompartmentId);
-                for (Image imageId : list) {
+
+                for (Image imageId : client.getImagesList(imageCompartmentId)) {
                     if (lstImage.indexOf(imageId.getId()) < 0) {
                         model.add(imageId.getDisplayName(), imageId.getId());
                         lstImage.add(imageId.getId());
@@ -520,12 +499,11 @@ public class BaremetalCloudAgentTemplate implements Describable<BaremetalCloudAg
                 return model;
             }
 
-            BaremetalCloudClient client = getClient(credentialsId, maxAsyncThreads);
-
             try {
+                BaremetalCloudClient client = getClient(credentialsId, maxAsyncThreads);
                 List<String>  lstShape = new ArrayList<String>();
-                List<Shape> list = client.getShapesList(compartmentId, availableDomain, imageId);
-                for (Shape shape : list) {
+
+                for (Shape shape : client.getShapesList(compartmentId, availableDomain, imageId)) {
                     if (lstShape.indexOf(shape.getShape()) < 0) {
                         model.add(shape.getShape(), shape.getShape());
                         lstShape.add(shape.getShape());
@@ -549,16 +527,12 @@ public class BaremetalCloudAgentTemplate implements Describable<BaremetalCloudAg
                 return model;
             }
 
-            BaremetalCloudClient client = getClient(credentialsId, maxAsyncThreads);
-            BaremetalCloudCredentials credentials = CredentialsMatchers.firstOrNull(
-                    CredentialsProvider.lookupCredentials(BaremetalCloudCredentials.class, Jenkins.getInstance(), ACL.SYSTEM, Collections.<DomainRequirement>emptyList()),
-                    CredentialsMatchers.withId(credentialsId));
             try{
-                if (credentials != null) {
-                    for (Compartment compartment : client.getCompartmentsList(credentials.getTenantId())) {
+                BaremetalCloudClient client = getClient(credentialsId, maxAsyncThreads);
+
+                for (Compartment compartment : client.getCompartmentsList()) {
                         model.add(compartment.getName(), compartment.getId());
                     }
-                }
             }catch (Exception e) {
                 LOGGER.log(Level.WARNING, "Failed to get compartment list", e);
             }
@@ -581,9 +555,8 @@ public class BaremetalCloudAgentTemplate implements Describable<BaremetalCloudAg
                 vcnCompartmentId = compartmentId;
             }
 
-            BaremetalCloudClient client = getClient(credentialsId, maxAsyncThreads);
-
             try {
+                BaremetalCloudClient client = getClient(credentialsId, maxAsyncThreads);
                 for (Vcn vcnId : client.getVcnList(vcnCompartmentId)) {
                     model.add(vcnId.getDisplayName(), vcnId.getId());
                 }
@@ -611,9 +584,8 @@ public class BaremetalCloudAgentTemplate implements Describable<BaremetalCloudAg
                 vcnCompartmentId = compartmentId;
             }
 
-            BaremetalCloudClient client = getClient(credentialsId, maxAsyncThreads);
-
             try {
+                BaremetalCloudClient client = getClient(credentialsId, maxAsyncThreads);
                 for (Subnet subnet : client.getSubNetList(vcnCompartmentId, vcnId)) {
                     if (null == subnet.getAvailabilityDomain() || subnet.getAvailabilityDomain().equals(availableDomain)) {
                         model.add(subnet.getDisplayName(), subnet.getId());
@@ -624,7 +596,7 @@ public class BaremetalCloudAgentTemplate implements Describable<BaremetalCloudAg
             }
             return model;
         }
-        
+
         public ListBoxModel doFillSshCredentialsIdItems(
                 @AncestorInPath Item context, 
                 @QueryParameter String sshCredentialsId) {

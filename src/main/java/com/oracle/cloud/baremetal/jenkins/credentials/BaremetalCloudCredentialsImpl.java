@@ -6,11 +6,14 @@ import org.kohsuke.stapler.QueryParameter;
 
 import com.cloudbees.plugins.credentials.CredentialsScope;
 import com.cloudbees.plugins.credentials.impl.BaseStandardCredentials;
+import com.oracle.bmc.auth.InstancePrincipalsAuthenticationDetailsProvider;
 import com.oracle.bmc.auth.SimpleAuthenticationDetailsProvider;
 import com.oracle.bmc.model.BmcException;
 
 import com.oracle.cloud.baremetal.jenkins.client.BaremetalCloudClient;
+import com.oracle.cloud.baremetal.jenkins.client.BaremetalCloudClientFactory;
 import com.oracle.cloud.baremetal.jenkins.client.SDKBaremetalCloudClient;
+import com.oracle.cloud.baremetal.jenkins.client.SDKBaremetalCloudClientFactory;
 import hudson.Extension;
 import hudson.util.FormValidation;
 import hudson.util.Secret;
@@ -27,9 +30,19 @@ public final class BaremetalCloudCredentialsImpl extends BaseStandardCredentials
     private final String tenantId;
     private final String userId;
     private final String regionId;
+    private final boolean instancePrincipals;
 
   @DataBoundConstructor
-    public BaremetalCloudCredentialsImpl(CredentialsScope scope, String id, String description, String fingerprint, String apikey, String passphrase, String tenantId, String userId, String regionId) {
+    public BaremetalCloudCredentialsImpl(CredentialsScope scope,
+            String id,
+            String description,
+            String fingerprint,
+            String apikey,
+            String passphrase,
+            String tenantId,
+            String userId,
+            String regionId,
+            boolean instancePrincipals) {
         super(scope, id, description);
         this.fingerprint = fingerprint;
         this.apikey = getEncryptedValue(apikey);
@@ -37,6 +50,7 @@ public final class BaremetalCloudCredentialsImpl extends BaseStandardCredentials
         this.tenantId = tenantId;
         this.userId = userId;
         this.regionId = regionId;
+        this.instancePrincipals = instancePrincipals;
     }
 
     @Override
@@ -69,6 +83,11 @@ public final class BaremetalCloudCredentialsImpl extends BaseStandardCredentials
         return regionId;
     }
 
+    @Override
+    public boolean isInstancePrincipals() {
+        return instancePrincipals;
+    }
+
     protected String getEncryptedValue(String str) {
         return Secret.fromString(str).getEncryptedValue();
     }
@@ -91,23 +110,34 @@ public final class BaremetalCloudCredentialsImpl extends BaseStandardCredentials
                     @QueryParameter String passphrase,
                     @QueryParameter String tenantId,
                     @QueryParameter String userId,
-                    @QueryParameter String regionId) {
-
-            SimpleAuthenticationDetailsProvider provider = SimpleAuthenticationDetailsProvider.builder()
-                .fingerprint(fingerprint)
-                .passPhrase(passphrase)
-                .privateKeySupplier(() ->  new ByteArrayInputStream(apikey.getBytes(StandardCharsets.UTF_8)))
-                .tenantId(tenantId)
-                .userId(userId)
-                .build();
-
-            BaremetalCloudClient client = new SDKBaremetalCloudClient(provider, regionId, 50);
-            try{
-                client.authenticate();
-                return FormValidation.ok(com.oracle.cloud.baremetal.jenkins.Messages.BaremetalCloud_testConnection_success());
-            }catch(BmcException e){
-                LOGGER.log(Level.INFO, "Failed to connect to Oracle Cloud Infrastructure, Please verify all the credential informations enterred", e);
-                return FormValidation.error(com.oracle.cloud.baremetal.jenkins.Messages.BaremetalCloud_testConnection_unauthorized());
+                    @QueryParameter String regionId,
+                    @QueryParameter boolean instancePrincipals) {
+            if (!instancePrincipals) {
+                SimpleAuthenticationDetailsProvider provider = SimpleAuthenticationDetailsProvider.builder()
+                    .fingerprint(fingerprint)
+                    .passPhrase(passphrase)
+                    .privateKeySupplier(() ->  new ByteArrayInputStream(apikey.getBytes(StandardCharsets.UTF_8)))
+                    .tenantId(tenantId)
+                    .userId(userId)
+                    .build();
+                BaremetalCloudClient client = new SDKBaremetalCloudClient(provider, regionId, 50);
+                try{
+                    client.authenticate();
+                    return FormValidation.ok(com.oracle.cloud.baremetal.jenkins.Messages.BaremetalCloud_testConnection_success());
+                }catch(BmcException e){
+                    LOGGER.log(Level.INFO, "Failed to connect to Oracle Cloud Infrastructure, Please verify all the credential informations enterred", e);
+                    return FormValidation.error(com.oracle.cloud.baremetal.jenkins.Messages.BaremetalCloud_testConnection_unauthorized());
+                }
+            } else {
+                InstancePrincipalsAuthenticationDetailsProvider provider = InstancePrincipalsAuthenticationDetailsProvider.builder().build(); 
+                BaremetalCloudClient client = new SDKBaremetalCloudClient(provider, regionId, 50, tenantId);
+                try{
+                    client.authenticate();
+                    return FormValidation.ok(com.oracle.cloud.baremetal.jenkins.Messages.BaremetalCloud_testConnection_success());
+                }catch(BmcException e){
+                    LOGGER.log(Level.INFO, "Failed to connect to Oracle Cloud Infrastructure, Please verify all the credential informations enterred", e);
+                    return FormValidation.error(com.oracle.cloud.baremetal.jenkins.Messages.BaremetalCloud_testConnection_unauthorized());
+                }
             }
         }
     }

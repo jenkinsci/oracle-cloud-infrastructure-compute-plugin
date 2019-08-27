@@ -53,11 +53,16 @@ public interface BaremetalCloudClient extends AutoCloseable {
      /**
      * Get the compartment list
      *
-     * @param tenantId the tenant id
      * @return compartment list
      * @throws Exception if an error occurs
      */
-    List<Compartment> getCompartmentsList(String tenantId) throws Exception;
+    List<Compartment> getCompartmentsList() throws Exception;
+
+    /**Get tenanId for Instance Principals
+     * @return tenanId
+     * @throws Exception if an error occurs
+     */
+    String getTenantId() throws Exception;
 
     /**
      * Get the available domain response
