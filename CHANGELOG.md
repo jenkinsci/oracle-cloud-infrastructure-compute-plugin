@@ -3,6 +3,14 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/).
 
+## 1.0.6 - September 2019
+
+### Added
+
+- OCI API keys and SSH Keys are now defined in Jenkins Credentials. **Note:** if upgrading you need to update the values in your existing Cloud configuration(s).
+- Support for Instance Principals and calling services from an Instance. See [Calling Services from an Instance](https://docs.cloud.oracle.com/iaas/Content/Identity/Tasks/callingservicesfrominstances.htm) documentation for additional information.
+- OCI Java SDK 1.7.0
+
 ## 1.0.5 - July 2019
 
 ### Added
