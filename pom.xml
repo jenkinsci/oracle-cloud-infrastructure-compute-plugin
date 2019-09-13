@@ -9,7 +9,7 @@
   </parent>
   <groupId>org.jenkins-ci.plugins</groupId>
   <artifactId>oracle-cloud-infrastructure-compute</artifactId>
-  <version>1.0.6</version>
+  <version>1.0.7-SNAPSHOT</version>
   <packaging>hpi</packaging>
 
   <properties>
@@ -50,7 +50,7 @@
     <connection>scm:git:https://github.com/jenkinsci/oracle-cloud-infrastructure-compute-plugin</connection>
     <developerConnection>scm:git:git@github.com:jenkinsci/oracle-cloud-infrastructure-compute-plugin.git</developerConnection>
     <url>https://github.com/jenkinsci/oracle-cloud-infrastructure-compute-plugin</url>
-    <tag>oracle-cloud-infrastructure-compute-1.0.6</tag>
+    <tag>HEAD</tag>
   </scm>
 
   <issueManagement>
