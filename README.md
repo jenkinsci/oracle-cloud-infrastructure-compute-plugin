@@ -208,7 +208,7 @@ Click **Verify Credentials** that you can connect successfully to your Oracle Cl
    - **Compartment** - The compartment from which the new Instance is launched. 
    - **Availability Domain** - The Availability Domain for your instance.  
    - **Image Compartment** -  The compartment from which to select the Instance's image. 
-   - **Image** - Select the Image the instance will use. **Note:** Java should be installed on the image as a Jenkins requirement. Alternatively refer to **Init Script** in Advanced section below to install Java on the newly launched instances.
+   - **Image** - Select the Image the instance will use. **Note:** Java should be installed on the image as a Jenkins requirement. Alternatively refer to **Init Script** in Advanced section below to install Java on the newly launched Linux instances. **Note:** Windows images also need to be preconfigured and to be able to authenticate with SSH.
    - **Shape** - The Shape for your instance.
    - **Virtual Cloud Network Compartment** -  The compartment from which to select the Virtual Cloud Network and Subnet. 
    - **Virtual Cloud Network** - The Virtual Cloud Network for your instance.
@@ -223,7 +223,7 @@ Click **Verify Credentials** that you can connect successfully to your Oracle Cl
    - **Instance SSH Connection Timeout** - Number of seconds to wait for instance from state Running to be able to ssh connect from Jenkins master. Default value is 900.
    - **Idle Termination Minutes** - Number of minutes for Jenkins to wait before deleting and completely removing an idle instance. A value of 0 (or an empty string) indicates that instance will never be stopped/deleted. 
    - **Number of Executors** - Number of concurrent builds that Jenkins can perform. Value should be at least 1.
-   - **Init Script** - You can define several lines of shell based commands to configure the instance (one-time) before it comes online. For example, if the image selected does not have Java pre-installed, you can add command "sudo yum -y install java"
+   - **Init Script** - You can define several lines of shell based commands to configure the instance (one-time) before it comes online. For example, if the image selected does not have Java pre-installed, you can add command "sudo yum -y install java". This functionality works for Linux instances only.
    - **Init Script Timeout** - Number of seconds to wait for the completion of Init Script. Default value is 120 seconds. 
    - **Template Instance Cap** - Places a limit on the number of OCI Instances that Jenkins may launch from this Template. Leave this field empty to remove the Template Instance Cap. 
 
