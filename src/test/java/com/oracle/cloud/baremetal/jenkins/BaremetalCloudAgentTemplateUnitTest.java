@@ -1,9 +1,5 @@
 package com.oracle.cloud.baremetal.jenkins;
 
-import static com.oracle.cloud.baremetal.jenkins.BaremetalCloudTestUtils.API_KEY;
-import static com.oracle.cloud.baremetal.jenkins.BaremetalCloudTestUtils.FINGERPRINT;
-import static com.oracle.cloud.baremetal.jenkins.BaremetalCloudTestUtils.TENANT_ID;
-import static com.oracle.cloud.baremetal.jenkins.BaremetalCloudTestUtils.USER_ID;
 import static com.oracle.cloud.baremetal.jenkins.BaremetalCloudTestUtils.CREDENTIALS_ID;
 
 import java.io.IOException;
@@ -85,12 +81,6 @@ public class BaremetalCloudAgentTemplateUnitTest {
         Assert.assertEquals("rfs", new TestBaremetalCloudAgentTemplate.Builder().remoteFS("rfs").build().getRemoteFS());
     }
 
-    /*@Test
-    public void testGetSshUser() {
-        Assert.assertNull(new TestBaremetalCloudAgentTemplate().getSshUser());
-        Assert.assertEquals("u", new TestBaremetalCloudAgentTemplate.Builder().sshUser("u").build().getSshUser());
-    }*/
-
     @Test
     public void testGetNumExecutorsValue() {
         int defaultNumExecutors = BaremetalCloudAgentTemplate.DescriptorImpl.getDefaultNumExecutors();
@@ -164,29 +154,6 @@ public class BaremetalCloudAgentTemplateUnitTest {
         Assert.assertEquals("1", new TestBaremetalCloudAgentTemplate.Builder().sshConnectTimeoutSeconds("1").build().getSshConnectTimeoutSeconds());
     }
 
-    /*@Test
-    public void testGetSshPublickey() {
-        Assert.assertNull(new TestBaremetalCloudAgentTemplate().getSshPublickey());
-        Assert.assertEquals("skn", new TestBaremetalCloudAgentTemplate.Builder().sshPublickey("skn").build().getSshPublickey());
-    }*/
-
-    /*@Test
-    public void testGetSshPrivateKey() {
-        Assert.assertNull(new TestBaremetalCloudAgentTemplate().getSshPrivatekey());
-        Assert.assertEquals("pk", new TestBaremetalCloudAgentTemplate.Builder().sshPrivatekey("pk").build().getSshPrivatekey());
-    }*/
-
-    /*@Test
-    public void testGetPlanText() {
-        Assert.assertNull(BaremetalCloudAgentTemplate.getPlainText("abc"));
-    }*/
-
-    /*@Test
-    public void testGetSshNotEncryptedPrivateKey() {
-        Assert.assertNull(new TestBaremetalCloudAgentTemplate.Builder().encryptSshPrivateKey(false).build().getSshPrivatekey());
-        Assert.assertEquals("pk", new TestBaremetalCloudAgentTemplate.Builder().sshPrivatekey("pk").encryptSshPrivateKey(false).build().getSshPrivatekey());
-    }*/
-
     @Test
     public void testGetInitScript() {
         Assert.assertNull(new TestBaremetalCloudAgentTemplate().getInitScript());
@@ -213,15 +180,6 @@ public class BaremetalCloudAgentTemplateUnitTest {
         Assert.assertEquals(0, new TestBaremetalCloudAgentTemplate.Builder().startTimeoutSeconds("0").build().getStartTimeoutNanos());
         Assert.assertEquals(TimeUnit.SECONDS.toNanos(1), new TestBaremetalCloudAgentTemplate.Builder().startTimeoutSeconds("1").build().getStartTimeoutNanos());
     }
-
-    /*@Test
-    public void testConfigMessages() throws Exception {
-        for (Method method : BaremetalCloudAgentTemplate.ConfigMessages.class.getMethods()) {
-            if (Modifier.isStatic(method.getModifiers())) {
-                Assert.assertNotNull(method.invoke(null));
-            }
-        }
-    }*/
 
     @Test
     public void testGetDefaultNumExecutors() {
@@ -291,70 +249,6 @@ public class BaremetalCloudAgentTemplateUnitTest {
     // Extracted from private key: ssh-keygen -y -f privkey.pem
     private static final String TEST_PUBLIC_KEY_SSH = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAAAYQCphMI+vErH97+bZKJWc8ADbw7PzwxgUsQvANRarF0Poaxmv4/yQf0fsVz0r6/2tSlmj4pV6oQC7fPuyyH4OE21MXYV1XVSbqYWuycAVAgR/OwxVUM3OcKiSeyeoiBmTTc=";
 
-    /*@Test
-    public void testDoCheckPrivateKey() throws Exception {
-        Assert.assertEquals(FormValidation.Kind.ERROR, new BaremetalCloudAgentTemplate.DescriptorImpl().doCheckSshPrivatekey(null).kind);
-        Assert.assertEquals(FormValidation.Kind.ERROR, new BaremetalCloudAgentTemplate.DescriptorImpl().doCheckSshPrivatekey("").kind);
-    }
-
-    //private static FormValidation doVerifySshKeyPair(TestBaremetalCloudAgentTemplate.TestDescriptor.PEMDecoder pemDecoder) {
-    //    return new TestBaremetalCloudAgentTemplate.TestDescriptor.Builder()
-    //            .pemDecoder(pemDecoder)
-    //           .build().doVerifySshKeyPair(TEST_PUBLIC_KEY_SSH,TEST_PRIVATE_KEY_PEM);
-    //}
-    /*
-    @Test
-    public void testDoVerifySshKeyPairUnrecoverableKeyException() throws Exception {
-        Assert.assertEquals(FormValidation.Kind.ERROR, doVerifySshKeyPair(new TestBaremetalCloudAgentTemplate.TestDescriptor.PEMDecoder() {
-            @Override
-            public PEMEncodable decode(String pem) throws UnrecoverableKeyException {
-                throw new UnrecoverableKeyException();
-            }
-        }).kind);
-    }
-
-    @Test
-    public void testDoVerifySshKeyPairIOException() throws Exception {
-        Assert.assertEquals(FormValidation.Kind.ERROR, doVerifySshKeyPair(new TestBaremetalCloudAgentTemplate.TestDescriptor.PEMDecoder() {
-            @Override
-            public PEMEncodable decode(String pem) throws IOException {
-                throw new IOException();
-            }
-        }).kind);
-    }
-
-    @Test
-    public void testDoVerifySshKeyPairNullPointerException() throws Exception {
-        Assert.assertEquals(FormValidation.Kind.ERROR, doVerifySshKeyPair(new TestBaremetalCloudAgentTemplate.TestDescriptor.PEMDecoder() {
-            @Override
-            public PEMEncodable decode(String pem) throws IOException {
-                // Simulate https://issues.jenkins-ci.org/browse/JENKINS-41978
-                throw new NullPointerException();
-            }
-        }).kind);
-    }
-
-    @Test
-    public void testDoVerifySshKeyPairNotRSAPublicKey() throws Exception {
-        Assert.assertEquals(FormValidation.Kind.ERROR, doVerifySshKeyPair(new TestBaremetalCloudAgentTemplate.TestDescriptor.PEMDecoder() {
-            @Override
-            public PEMEncodable decode(String pem) throws IOException {
-                return PEMEncodable.create(new KeyPair(null, null));
-            }
-        }).kind);
-    }
-
-    @Test
-    public void testDoVerifySshKeyPairKeyNotFound() throws Exception {
-        final BaremetalCloudClientFactory factory = mockery.mock(BaremetalCloudClientFactory.class);
-        final BaremetalCloudClient client = mockery.mock(BaremetalCloudClient.class);
-        mockery.checking(new Expectations() {{
-//            allowing(factory).createClient(FINGERPRINT, API_KEY, "", TENANT_ID, USER_ID, "us-phoenix-1", 50); will(returnValue(client));
-        allowing(factory).createClient(CREDENTIALS_ID, 50); will(returnValue(client));
-        }});
-
-    }
-    */
     @Test
     public void testDoCheckStartTimeoutSeconds() {
         Assert.assertEquals(FormValidation.Kind.ERROR, new TestBaremetalCloudAgentTemplate.DescriptorImpl().doCheckStartTimeoutSeconds(null).kind);
