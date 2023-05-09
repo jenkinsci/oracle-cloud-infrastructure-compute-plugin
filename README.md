@@ -36,12 +36,12 @@ View OCI Compute Plugin page on the [plugins.jenkins.io](https://plugins.jenkins
 
 2. Jenkins installed with JDK 8 or higher.
 
-3. Required Plugins: [bouncycastle API](https://plugins.jenkins.io/bouncycastle-api), [SSH Credentials](https://plugins.jenkins.io/ssh-credentials/), and [Credentials](https://plugins.jenkins.io/credentials)
+3. Required Plugins: [bouncycastle API](https://plugins.jenkins.io/bouncycastle-api), [SSH Credentials](https://plugins.jenkins.io/ssh-credentials/), [Credentials](https://plugins.jenkins.io/credentials)  and [Jersey2 API](https://plugins.jenkins.io/jersey2-api)
 
 
 
 ## Compatibility
-Minimum Jenkins requirement: ***2.222.4***
+Minimum Jenkins requirement: ***2.263.1***
 
 
 
