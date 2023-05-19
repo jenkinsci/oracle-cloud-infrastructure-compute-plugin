@@ -97,6 +97,10 @@
         <f:textbox default="900" />
       </f:entry>
 
+      <f:entry title="${%sshVerificationStrategy}" field="verificationStrategy">
+        <f:checkbox default='false' />
+      </f:entry>
+
       <f:entry title="${%sshConnectTimeoutSeconds}" field="sshConnectTimeoutSeconds">
         <f:textbox default="900" />
       </f:entry>
@@ -110,6 +114,14 @@
 	  </f:entry>
 
       <f:entry title="${%jenkinsAgentUser}" field="jenkinsAgentUser">
+        <f:textbox default=""/>
+      </f:entry>
+
+      <f:entry title="${%customJavaPath}" field="customJavaPath">
+        <f:textbox default=""/>
+      </f:entry>
+
+      <f:entry title="${%customJVMOpts}" field="customJVMOpts">
         <f:textbox default=""/>
       </f:entry>
 
