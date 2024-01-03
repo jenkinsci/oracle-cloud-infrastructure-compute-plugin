@@ -14,7 +14,7 @@
              onclick="validateButtonUsingFindNearBy('${descriptor.descriptorFullUrl}/${method}', '${with}', this)" />
     </div>
     <div style="display:none">
-      <img src="${imagesURL}/spinner.gif" /> ${attrs.progress}
+      <l:progressAnimation/> ${attrs.progress}
     </div>
     <div><!-- Placeholder for errors. --></div>
   </f:entry>
