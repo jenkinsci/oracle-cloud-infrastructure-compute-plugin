@@ -1,11 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
   <modelVersion>4.0.0</modelVersion>
 
   <parent>
     <groupId>org.jenkins-ci.plugins</groupId>
     <artifactId>plugin</artifactId>
-    <version>4.16</version>
+    <version>4.79</version>
     <relativePath />
   </parent>
   <artifactId>oracle-cloud-infrastructure-compute</artifactId>
@@ -13,10 +14,12 @@
   <packaging>hpi</packaging>
 
   <properties>
-    <java.level>8</java.level>
+    <java.level>11</java.level>
     <oci-java-sdk.version>2.46.0</oci-java-sdk.version>
-    <jenkins.version>2.263.1</jenkins.version>
+    <jenkins.version>2.426.3</jenkins.version>
     <enforcer.skip>true</enforcer.skip>
+    <maven.compiler.target>11</maven.compiler.target>
+    <maven.compiler.source>11</maven.compiler.source>
   </properties>
 
   <name>Oracle Cloud Infrastructure Compute Plugin</name>
@@ -43,6 +46,11 @@
       <id>sindyarl</id>
       <name>Sindhu Sri Yarlagadda</name>
       <email>sindhu.sri.y.yarlagadda@oracle.com</email>
+    </developer>
+    <developer>
+      <id>pcbajpai</id>
+      <name>Prashant C Bajpai</name>
+      <email>prashant.bajpai@oracle.com</email>
     </developer>
     <developer>
       <id>dmeirowi</id>
@@ -89,16 +97,29 @@
     </pluginRepository>
   </pluginRepositories>
 
+  <dependencyManagement>
+    <dependencies>
+      <dependency>
+        <groupId>io.jenkins.tools.bom</groupId>
+        <artifactId>bom-2.426.x</artifactId>
+        <version>2907.vcb_35d6f2f7de</version>
+        <scope>import</scope>
+        <type>pom</type>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
   <dependencies>
     <dependency>
       <groupId>org.jenkins-ci.plugins</groupId>
       <artifactId>credentials</artifactId>
-      <version>2.6.1.1</version>
     </dependency>
     <dependency>
       <groupId>org.jenkins-ci.plugins</groupId>
       <artifactId>ssh-credentials</artifactId>
-      <version>1.18.1</version>
+    </dependency>
+    <dependency>
+      <groupId>org.jenkins-ci.plugins</groupId>
+      <artifactId>credentials-binding</artifactId>
     </dependency>
     <dependency>
       <groupId>com.oracle.oci.sdk</groupId>
@@ -125,6 +146,18 @@
           <groupId>org.glassfish.jersey.inject</groupId>
           <artifactId>*</artifactId>
         </exclusion>
+        <exclusion>
+          <groupId>com.fasterxml.jackson.core</groupId>
+          <artifactId>*</artifactId>
+        </exclusion>
+        <exclusion>
+          <groupId>jakarta.annotation</groupId>
+          <artifactId>*</artifactId>
+        </exclusion>
+        <!--        <exclusion>-->
+        <!--          <groupId>com.fasterxml.jackson.core</groupId>-->
+        <!--          <artifactId>jackson-databind</artifactId>-->
+        <!--        </exclusion>-->
       </exclusions>
     </dependency>
     <dependency>
@@ -140,43 +173,46 @@
     <dependency>
       <groupId>org.jenkins-ci.plugins</groupId>
       <artifactId>bouncycastle-api</artifactId>
-      <version>2.16.0</version>
     </dependency>
     <dependency>
       <groupId>io.jenkins.plugins</groupId>
       <artifactId>jersey2-api</artifactId>
-      <version>2.35-8</version>
+    </dependency>
+    <dependency>
+      <groupId>org.jenkins-ci.plugins</groupId>
+      <artifactId>jackson2-api</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>io.jenkins.plugins</groupId>
+      <artifactId>jakarta-activation-api</artifactId>
     </dependency>
     <dependency>
       <groupId>org.jmock</groupId>
       <artifactId>jmock-junit4</artifactId>
-      <version>2.8.2</version>
+      <version>2.13.1</version>
       <scope>test</scope>
     </dependency>
     <dependency>
       <groupId>commons-codec</groupId>
       <artifactId>commons-codec</artifactId>
-      <version>1.15</version>
     </dependency>
     <dependency>
       <groupId>org.apache.commons</groupId>
       <artifactId>commons-lang3</artifactId>
-      <version>3.9</version>
+      <version>3.14.0</version>
     </dependency>
     <dependency>
       <groupId>com.google.guava</groupId>
       <artifactId>guava</artifactId>
-      <version>30.1-jre</version>
     </dependency>
     <dependency>
       <groupId>org.slf4j</groupId>
       <artifactId>slf4j-api</artifactId>
-      <version>1.7.30</version>
     </dependency>
     <dependency>
       <groupId>commons-io</groupId>
       <artifactId>commons-io</artifactId>
-      <version>2.8.0</version>
+      <version>2.15.1</version>
     </dependency>
   </dependencies>
 
@@ -194,20 +230,6 @@
         <directory>${project.basedir}/src/main/resources</directory>
       </resource>
     </resources>
-    <plugins>
-      <plugin>
-        <artifactId>maven-surefire-plugin</artifactId>
-        <configuration>
-          <!-- Excluded because of https://issues.jenkins-ci.org/browse/JENKINS-48894 -->
-          <excludes>
-            <exclude>InjectedTest.java</exclude>
-          </excludes>
-          <!-- Override the <argLine> from the parent POM to include @{argLine},
-               which is updated by jacoco-maven-plugin to add -javaagent. -->
-          <argLine>@{argLine} -Djava.awt.headless=true ${argLine}</argLine>
-        </configuration>
-      </plugin>
-    </plugins>
   </build>
 
   <!-- Project Report Configuration -->
