@@ -34,14 +34,15 @@ View OCI Compute Plugin page on the [plugins.jenkins.io](https://plugins.jenkins
 
 1. Oracle Cloud Account. To sign up, visit [Oracle Cloud](https://cloud.oracle.com/en_US/tryit).
 
-2. Jenkins installed with JDK 8 or higher.
+2. Jenkins installed with JDK 11 or higher.
 
 3. Required Plugins: [bouncycastle API](https://plugins.jenkins.io/bouncycastle-api), [SSH Credentials](https://plugins.jenkins.io/ssh-credentials/), [Credentials](https://plugins.jenkins.io/credentials)  and [Jersey2 API](https://plugins.jenkins.io/jersey2-api)
 
 
 
 ## Compatibility
-Minimum Jenkins requirement: ***2.263.1***
+Minimum Jenkins requirement: ***2.426.3***
+
 
 
 
@@ -185,6 +186,27 @@ Separately you can select the **Instance Principals** option. Using this option 
 
 Click **Verify Credentials** that you can connect successfully to your OCI.
 
+#### Using your OCI credentials with the Credential Binding plugin
+
+The OCI config provided for creating instances can also be used as a credential in jenkins pipelines.
+
+```groovy
+pipeline {
+   agent {
+      label "my-oci-label"
+   }
+
+   stages {
+      stage("My OCI Test") {
+         steps {
+            withCredentials([ociCredential(credentialsId: 'MY_OCI_CREDENTIAL')]) {
+               sh 'oci iam compartment list'
+            }
+         }
+      }
+   }
+}
+```
 
 
 #### Add OCI Cloud
@@ -250,7 +272,7 @@ Click **Verify Credentials** that you can connect successfully to your OCI.
 
 ## Licensing
 
-Copyright (c) 2018, 2022, Oracle and/or its affiliates. All rights reserved.
+Copyright (c) 2018, 2024, Oracle and/or its affiliates. All rights reserved.
 
 This Plugin is licensed under the Universal Permissive License 1.0
 
