@@ -4,7 +4,7 @@
     <tr>
       <td />
       <td colspan="${monitors.size()+1}">
-        <f:form action="${rootURL}/cloud/${it.name}/provisionArguments" method="post" name="provisionArguments">
+        <f:form action="${rootURL}/${it.url}/provisionArguments" method="post" name="provisionArguments">
 
           <input type="submit" class="compute-provision-button" value="${%provision(it.displayName)}" />
 
