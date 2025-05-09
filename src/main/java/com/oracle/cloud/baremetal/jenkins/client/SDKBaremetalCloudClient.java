@@ -9,7 +9,10 @@ import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
 import com.oracle.bmc.ClientRuntime;
+import com.oracle.bmc.auth.BasicAuthenticationDetailsProvider;
+import com.oracle.bmc.auth.AbstractRequestingAuthenticationDetailsProvider;
 import com.oracle.bmc.auth.InstancePrincipalsAuthenticationDetailsProvider;
+import com.oracle.bmc.auth.okeworkloadidentity.OkeWorkloadIdentityAuthenticationDetailsProvider;
 import com.oracle.bmc.auth.SimpleAuthenticationDetailsProvider;
 import com.oracle.bmc.core.ComputeAsyncClient;
 import com.oracle.bmc.core.ComputeClient;
@@ -43,93 +46,58 @@ import jenkins.model.Jenkins;
 public class SDKBaremetalCloudClient implements BaremetalCloudClient {
     private static final Logger LOGGER = Logger.getLogger(SDKBaremetalCloudClient.class.getName());
 
-    private SimpleAuthenticationDetailsProvider provider;
+    private BasicAuthenticationDetailsProvider provider;
     private String regionId;
     private ClientConfiguration clientConfig;
-    private InstancePrincipalsAuthenticationDetailsProvider instancePrincipalsProvider;
-    private boolean instancePrincipals;
     private String tenantId;
 
-    public SDKBaremetalCloudClient(SimpleAuthenticationDetailsProvider provider, String regionId, int maxAsyncThreads) {
+    public SDKBaremetalCloudClient(BasicAuthenticationDetailsProvider provider, String regionId, int maxAsyncThreads, String tenantId) {
         this.provider = provider;
         this.regionId = regionId;
         this.clientConfig = ClientConfiguration.builder().maxAsyncThreads(maxAsyncThreads).build();
-        this.tenantId = provider.getTenantId();
+        if (provider instanceof AbstractRequestingAuthenticationDetailsProvider) {
+            this.tenantId = tenantId;
+        } else if (provider instanceof SimpleAuthenticationDetailsProvider) {
+            SimpleAuthenticationDetailsProvider simpleProvider = (SimpleAuthenticationDetailsProvider) provider;
+            this.tenantId = simpleProvider.getTenantId();
+        } else {
+            throw new IllegalArgumentException("Unsupported authentication provider type: " + provider.getClass().getName());
+        }
         ClientRuntime.setClientUserAgent("Oracle-Jenkins/" + Jenkins.VERSION);
     }
-
-    public SDKBaremetalCloudClient(InstancePrincipalsAuthenticationDetailsProvider instancePrincipalsProvider, String regionId, int maxAsyncThreads, String instancePrincipalsTenantId) {
-        this.instancePrincipalsProvider = instancePrincipalsProvider;
-        this.regionId = regionId;
-        this.instancePrincipals = true;
-        this.tenantId = instancePrincipalsTenantId;
-        this.clientConfig = ClientConfiguration.builder().maxAsyncThreads(maxAsyncThreads).build();
-        ClientRuntime.setClientUserAgent("Oracle-Jenkins/" + Jenkins.VERSION);
-    }
-
 
     private IdentityClient getIdentityClient() {
-        IdentityClient identityClient;
-        if (!instancePrincipals) {
-            identityClient = new IdentityClient(provider, null, new HTTPProxyConfigurator());
-        } else {
-            identityClient = new IdentityClient(instancePrincipalsProvider, null, new HTTPProxyConfigurator());
-        }
+        IdentityClient identityClient = new IdentityClient(provider, null, new HTTPProxyConfigurator());
         identityClient.setRegion(regionId);
         return identityClient;
     }
 
     private IdentityAsyncClient getIdentityAsyncClient() {
-        IdentityAsyncClient identityClient;
-        if (!instancePrincipals) {
-            identityClient = new IdentityAsyncClient(provider, clientConfig, new HTTPProxyConfigurator());
-        } else {
-            identityClient = new IdentityAsyncClient(instancePrincipalsProvider, clientConfig, new HTTPProxyConfigurator());
-        }
+        IdentityAsyncClient identityClient = new IdentityAsyncClient(provider, clientConfig, new HTTPProxyConfigurator());
         identityClient.setRegion(regionId);
         return identityClient;
     }
 
     private ComputeClient getComputeClient() {
-        ComputeClient computeClient;
-        if (!instancePrincipals) {
-            computeClient = new ComputeClient(provider, null, new HTTPProxyConfigurator());
-        } else {
-            computeClient = new ComputeClient(instancePrincipalsProvider, null, new HTTPProxyConfigurator());
-        }
+        ComputeClient computeClient = new ComputeClient(provider, null, new HTTPProxyConfigurator());
         computeClient.setRegion(regionId);
         return computeClient;
     }
 
     private ComputeAsyncClient getComputeAsyncClient() {
-        ComputeAsyncClient computeClient;
-        if (!instancePrincipals) {
-            computeClient = new ComputeAsyncClient(provider, clientConfig, new HTTPProxyConfigurator());
-        } else {
-            computeClient = new ComputeAsyncClient(instancePrincipalsProvider, null, new HTTPProxyConfigurator());
-        }
+        ComputeAsyncClient computeClient = new ComputeAsyncClient(provider, clientConfig, new HTTPProxyConfigurator());
         computeClient.setRegion(regionId);
         return computeClient;
     }
 
     private VirtualNetworkClient getVirtualNetworkClient() {
-        VirtualNetworkClient networkClient;
-        if (!instancePrincipals) {
-            networkClient = new VirtualNetworkClient(provider, null, new HTTPProxyConfigurator());
-        } else {
-            networkClient = new VirtualNetworkClient(instancePrincipalsProvider, null, new HTTPProxyConfigurator());
-        }
+        VirtualNetworkClient networkClient = new VirtualNetworkClient(provider, null, new HTTPProxyConfigurator());
         networkClient.setRegion(regionId);
         return networkClient;
     }
 
     private VirtualNetworkAsyncClient getVirtualNetworkAsyncClient() {
-        VirtualNetworkAsyncClient networkClient;
-        if (!instancePrincipals) {
-            networkClient = new VirtualNetworkAsyncClient(provider, clientConfig, new HTTPProxyConfigurator());
-        } else {
-            networkClient = new VirtualNetworkAsyncClient(instancePrincipalsProvider, null, new HTTPProxyConfigurator());
-        }
+        VirtualNetworkAsyncClient networkClient = new VirtualNetworkAsyncClient(provider, clientConfig, new HTTPProxyConfigurator());
         networkClient.setRegion(regionId);
         return networkClient;
     }
@@ -139,8 +107,9 @@ public class SDKBaremetalCloudClient implements BaremetalCloudClient {
         Identity identityClient = getIdentityClient();
 
         try{
-            if (!instancePrincipals) {
-                identityClient.getUser(GetUserRequest.builder().userId(provider.getUserId()).build());
+            if (provider instanceof SimpleAuthenticationDetailsProvider) {
+                SimpleAuthenticationDetailsProvider simpleProvider = (SimpleAuthenticationDetailsProvider) provider;
+                identityClient.getUser(GetUserRequest.builder().userId(simpleProvider.getUserId()).build());
             } else {
                 identityClient.getTenancy(GetTenancyRequest.builder().tenancyId(tenantId).build());
             }

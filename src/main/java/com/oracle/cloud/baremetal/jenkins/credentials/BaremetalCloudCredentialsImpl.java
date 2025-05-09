@@ -6,7 +6,9 @@ import org.kohsuke.stapler.QueryParameter;
 
 import com.cloudbees.plugins.credentials.CredentialsScope;
 import com.cloudbees.plugins.credentials.impl.BaseStandardCredentials;
+import com.oracle.bmc.auth.BasicAuthenticationDetailsProvider;
 import com.oracle.bmc.auth.InstancePrincipalsAuthenticationDetailsProvider;
+import com.oracle.bmc.auth.okeworkloadidentity.OkeWorkloadIdentityAuthenticationDetailsProvider;
 import com.oracle.bmc.auth.SimpleAuthenticationDetailsProvider;
 import com.oracle.bmc.model.BmcException;
 
@@ -29,6 +31,7 @@ public final class BaremetalCloudCredentialsImpl extends BaseStandardCredentials
     private final String userId;
     private final String regionId;
     private final boolean instancePrincipals;
+    private final boolean okeWorloadIdentity;
 
   @DataBoundConstructor
     public BaremetalCloudCredentialsImpl(CredentialsScope scope,
@@ -40,7 +43,8 @@ public final class BaremetalCloudCredentialsImpl extends BaseStandardCredentials
             String tenantId,
             String userId,
             String regionId,
-            boolean instancePrincipals) {
+            boolean instancePrincipals,
+            boolean okeWorloadIdentity) {
         super(scope, id, description);
         this.fingerprint = fingerprint;
         this.apikey = getEncryptedValue(apikey);
@@ -49,6 +53,10 @@ public final class BaremetalCloudCredentialsImpl extends BaseStandardCredentials
         this.userId = userId;
         this.regionId = regionId;
         this.instancePrincipals = instancePrincipals;
+        this.okeWorloadIdentity = okeWorloadIdentity;
+        if (instancePrincipals && okeWorloadIdentity) {
+            throw new IllegalArgumentException("Only one of instance principals or OKE workload identity can be selected.");
+        }
     }
 
     @Override
@@ -86,6 +94,11 @@ public final class BaremetalCloudCredentialsImpl extends BaseStandardCredentials
         return instancePrincipals;
     }
 
+    @Override
+    public boolean isOkeWorloadIdentity() {
+        return okeWorloadIdentity;
+    }
+
     protected String getEncryptedValue(String str) {
         return Secret.fromString(str).getEncryptedValue();
     }
@@ -115,8 +128,9 @@ public final class BaremetalCloudCredentialsImpl extends BaseStandardCredentials
                     @QueryParameter String tenantId,
                     @QueryParameter String userId,
                     @QueryParameter String regionId,
-                    @QueryParameter boolean instancePrincipals) {
-            if (!instancePrincipals) {
+                    @QueryParameter boolean instancePrincipals,
+                    @QueryParameter boolean okeWorloadIdentity) {
+            if (!instancePrincipals && !okeWorloadIdentity) {
                 SimpleAuthenticationDetailsProvider provider = SimpleAuthenticationDetailsProvider.builder()
                     .fingerprint(fingerprint)
                     .passPhrase(passphrase)
@@ -124,7 +138,7 @@ public final class BaremetalCloudCredentialsImpl extends BaseStandardCredentials
                     .tenantId(tenantId)
                     .userId(userId)
                     .build();
-                BaremetalCloudClient client = new SDKBaremetalCloudClient(provider, regionId, 50);
+                BaremetalCloudClient client = new SDKBaremetalCloudClient(provider, regionId, 50, "");
                 try{
                     client.authenticate();
                     return FormValidation.ok(com.oracle.cloud.baremetal.jenkins.Messages.BaremetalCloud_testConnection_success());
@@ -133,28 +147,37 @@ public final class BaremetalCloudCredentialsImpl extends BaseStandardCredentials
                     return FormValidation.error(com.oracle.cloud.baremetal.jenkins.Messages.BaremetalCloud_testConnection_unauthorized());
                 }
             } else {
-                InstancePrincipalsAuthenticationDetailsProvider provider = InstancePrincipalsAuthenticationDetailsProvider.builder().build(); 
+                if (instancePrincipals && okeWorloadIdentity) {
+                    LOGGER.log(Level.INFO, "Only one of instance principals or OKE workload identity can be selected.");
+                    return FormValidation.error(com.oracle.cloud.baremetal.jenkins.Messages.BaremetalCloud_testConnection_unauthorized());
+                }
+                BasicAuthenticationDetailsProvider provider = null;
+                if (okeWorloadIdentity) {
+                    provider = OkeWorkloadIdentityAuthenticationDetailsProvider.builder().build();
+                } else {
+                    provider = InstancePrincipalsAuthenticationDetailsProvider.builder().build();
+                }
                 BaremetalCloudClient client = new SDKBaremetalCloudClient(provider, regionId, 50, tenantId);
                 try{
-		    // If using Instance Principals, other credentials should not be
-		    // present.
-		    if (fingerprint != null && !fingerprint.trim().isEmpty()) {
-		       LOGGER.log(Level.INFO, "Fingerprint ignored when using Instance Principals");
-		    }
-		    if (apikey != null && !apikey.trim().isEmpty()) {
-		       LOGGER.log(Level.INFO, "API Key ignored when using Instance Principals");
-		    }
-		    if (passphrase != null && !passphrase.trim().isEmpty()) {
-		       LOGGER.log(Level.INFO, "Passphrase ignored when using Instance Principals");
-		    }
-		    if (userId != null && !userId.trim().isEmpty()) {
-		       LOGGER.log(Level.INFO, "User ID ignored when using Instance Principals");
-		    }
+                    // If using Instance or OKE workload identity, other credentials should not be
+                    // present.
+                    if (fingerprint != null && !fingerprint.trim().isEmpty()) {
+                        LOGGER.log(Level.INFO, "Fingerprint ignored when using Instance Principals");
+                    }
+                    if (apikey != null && !apikey.trim().isEmpty()) {
+                        LOGGER.log(Level.INFO, "API Key ignored when using Instance Principals");
+                    }
+                    if (passphrase != null && !passphrase.trim().isEmpty()) {
+                        LOGGER.log(Level.INFO, "Passphrase ignored when using Instance Principals");
+                    }
+                    if (userId != null && !userId.trim().isEmpty()) {
+                        LOGGER.log(Level.INFO, "User ID ignored when using Instance Principals");
+                    }
 
                     client.authenticate();
                     return FormValidation.ok(com.oracle.cloud.baremetal.jenkins.Messages.BaremetalCloud_testConnection_success());
                 }catch(BmcException e){
-                    LOGGER.log(Level.INFO, "Failed to connect to Oracle Cloud Infrastructure using Instance Principals. Please verify all the credential information entered.", e);
+                    LOGGER.log(Level.INFO, "Failed to connect to Oracle Cloud Infrastructure using Instance or OKE workload identity. Please verify all the credential information entered.", e);
                     return FormValidation.error(com.oracle.cloud.baremetal.jenkins.Messages.BaremetalCloud_testConnection_unauthorized());
                 }
             }

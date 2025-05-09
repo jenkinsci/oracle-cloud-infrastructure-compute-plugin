@@ -14,7 +14,7 @@
 
   <properties>
     <java.level>11</java.level>
-    <oci-java-sdk.version>2.46.0</oci-java-sdk.version>
+    <oci-java-sdk.version>2.54.0</oci-java-sdk.version>
     <jenkins.version>2.426.3</jenkins.version>
     <enforcer.skip>true</enforcer.skip>
     <maven.compiler.target>11</maven.compiler.target>
@@ -167,6 +167,11 @@
     <dependency>
       <groupId>com.oracle.oci.sdk</groupId>
       <artifactId>oci-java-sdk-identity</artifactId>
+      <version>${oci-java-sdk.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>com.oracle.oci.sdk</groupId>
+      <artifactId>oci-java-sdk-addons-oke-workload-identity</artifactId>
       <version>${oci-java-sdk.version}</version>
     </dependency>
     <dependency>

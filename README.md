@@ -180,11 +180,18 @@ Once in the New Credentials Screen, select **Oracle Cloud Infrastructure Credent
 - **ID** - An internal unique ID by which these credentials are identified from jobs and other configuration.
 - **Description** - An optional description to help tell similar credentials apart.
 
-Separately you can select the **Instance Principals** option. Using this option you can authorize an instance to make API calls in OCI services.  After you set up the required resources and policies in OCI, an application running on an instance can call OCI public services, removing the need to configure user credentials or a configuration file. If using this functionality, then the Jenkins Master is configured to authorize an instance to make API calls in OCI services. By checking this Option, only the Tenant Id and Region Fields are required. See [Calling Services from an Instance](https://docs.cloud.oracle.com/iaas/Content/Identity/Tasks/callingservicesfrominstances.htm) for additional information.
-
-
+Separately you can select the **Instance Principals** or **OKE Workload Identity** option. By checking either of these two options, only the **Tenant Id** and **Region** fields are required.
 
 Click **Verify Credentials** that you can connect successfully to your OCI.
+
+##### Instance Principals
+
+Using this option you can authorize an instance to make API calls to OCI services. After you set up the required resources and policies in OCI, an application running on an instance can call OCI public services, removing the need to configure user credentials or a configuration file. See [Calling Services from an Instance](https://docs.cloud.oracle.com/iaas/Content/Identity/Tasks/callingservicesfrominstances.htm) for additional information.
+
+##### OKE Workload Identity
+
+Using this option you can authorize service accounts in Oracle Kubernetes Engine (OKE) to make API calls to OCI services. After you set up the required resources and policies in OCI, Jenkins running in a pod using the service account can call OCI public services, removing the need to configure user credentials or a configuration file. 
+See [Granting Workloads Access to OCI Resources](https://docs.oracle.com/en-us/iaas/Content/ContEng/Tasks/contenggrantingworkloadaccesstoresources.htm) for additional information.
 
 #### Using your OCI credentials with the Credential Binding plugin
 
