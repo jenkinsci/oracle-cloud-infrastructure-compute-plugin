@@ -18,4 +18,5 @@ public interface BaremetalCloudCredentials extends StandardCredentials {
 
     boolean isInstancePrincipals();
 
+    boolean isOkeWorloadIdentity();
 }

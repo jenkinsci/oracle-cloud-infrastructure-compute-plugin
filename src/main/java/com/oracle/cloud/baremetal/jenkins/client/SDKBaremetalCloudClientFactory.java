@@ -1,6 +1,8 @@
 package com.oracle.cloud.baremetal.jenkins.client;
 
+import com.oracle.bmc.auth.BasicAuthenticationDetailsProvider;
 import com.oracle.bmc.auth.InstancePrincipalsAuthenticationDetailsProvider;
+import com.oracle.bmc.auth.okeworkloadidentity.OkeWorkloadIdentityAuthenticationDetailsProvider;
 import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
 
@@ -20,7 +22,7 @@ public class SDKBaremetalCloudClientFactory implements BaremetalCloudClientFacto
     public BaremetalCloudClient createClient (String credentialsId, int maxAsyncThreads) {
         BaremetalCloudCredentials credentials = (BaremetalCloudCredentials) BaremetalCloud.matchCredentials(BaremetalCloudCredentials.class,credentialsId);
         if (credentials != null) {
-            if (!credentials.isInstancePrincipals()) {
+            if (!credentials.isInstancePrincipals() && !credentials.isOkeWorloadIdentity()) {
             SimpleAuthenticationDetailsProvider provider = SimpleAuthenticationDetailsProvider.builder()
                     .fingerprint(credentials.getFingerprint())
                     .passPhrase(credentials.getPassphrase())
@@ -28,17 +30,26 @@ public class SDKBaremetalCloudClientFactory implements BaremetalCloudClientFacto
                     .tenantId(credentials.getTenantId())
                     .userId(credentials.getUserId())
                     .build();
-                return new SDKBaremetalCloudClient(provider, credentials.getRegionId(), maxAsyncThreads);
+                return new SDKBaremetalCloudClient(provider, credentials.getRegionId(), maxAsyncThreads, "");
             } else {
                 try {
-                    InstancePrincipalsAuthenticationDetailsProvider provider = InstancePrincipalsAuthenticationDetailsProvider.builder().build(); 
-                    return new SDKBaremetalCloudClient(provider, credentials.getRegionId(), maxAsyncThreads, credentials.getTenantId());
+                    if (credentials.isInstancePrincipals() && credentials.isOkeWorloadIdentity()) {
+                        LOGGER.log(Level.INFO, "Only one of instance principals or OKE workload identity can be used.");
+                    } else {
+                        BasicAuthenticationDetailsProvider provider = null;
+                        if (credentials.isOkeWorloadIdentity()) {
+                            provider = OkeWorkloadIdentityAuthenticationDetailsProvider.builder().build();
+                        } else {
+                            provider = InstancePrincipalsAuthenticationDetailsProvider.builder().build();
+                        }
+                        return new SDKBaremetalCloudClient(provider, credentials.getRegionId(), maxAsyncThreads, credentials.getTenantId());
+                    }
                 } catch (Exception e){
-                    LOGGER.log(Level.INFO,"Failed to use Calling Services from an Instance");
+                    LOGGER.log(Level.INFO, "Failed to use Calling Services from an Instance");
                 } 
             }
         }
-        LOGGER.log(Level.INFO,"Failed to create client!");
+        LOGGER.log(Level.INFO, "Failed to create client!");
         return null;
     }
 }
