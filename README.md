@@ -34,14 +34,14 @@ View OCI Compute Plugin page on the [plugins.jenkins.io](https://plugins.jenkins
 
 1. Oracle Cloud Account. To sign up, visit [Oracle Cloud](https://cloud.oracle.com/en_US/tryit).
 
-2. Jenkins installed with JDK 11 or higher.
+2. Jenkins installed with JDK 17 or higher.
 
 3. Required Plugins: [bouncycastle API](https://plugins.jenkins.io/bouncycastle-api), [SSH Credentials](https://plugins.jenkins.io/ssh-credentials/), [Credentials](https://plugins.jenkins.io/credentials)  and [Jersey2 API](https://plugins.jenkins.io/jersey2-api)
 
 
 
 ## Compatibility
-Minimum Jenkins requirement: ***2.426.3***
+Minimum Jenkins requirement: ***2.462.3***
 
 
 
@@ -121,7 +121,7 @@ Refer to OCI Java SDK licensing [here](https://github.com/oracle/oci-java-sdk/bl
 
 3. Compile and Install package:
 
-   > $ mvn package
+   > $ mvn package  -Dmaven.test.skip
 
 
 
@@ -255,7 +255,7 @@ pipeline {
    - **Idle Termination Minutes** - Number of minutes for Jenkins to wait before deleting and completely removing an idle instance. A value of 0 (or an empty string) indicates that instance will never be stopped/deleted.
    - **Number of Executors** - Number of concurrent builds that Jenkins can perform. Value should be at least 1.
    - **JenkinsAgentUser** -  The custom user to start the Jenkins agent process. This user must be baked into the OS image you select or created through an init script. To use this feature, the ssh user should have sudo privileges.
-   - **Custom Java Path** - Provide a custom java path if you wish to not use the java present in the current user's path to launch agent.jar. Make sure the current user has permission on that java bin directory. Example: /home/opc/installs/jdk-11.0.9/bin/ with the given user having permission on this directory.
+   - **Custom Java Path** - Provide a custom java path if you wish to not use the java present in the current user's path to launch agent.jar. Make sure the current user has permission on that java bin directory. Example: /home/opc/installs/jdk-17.0.17/bin/ with the given user having permission on this directory.
    - **Override JVM Options** - Provide JVM Options string to override the defaults. Eg: To increase heap size, provide this: -Xms256m -Xmx512m -Djava.awt.headless=true
    - **Init Script** - You can define several lines of shell based commands to configure the instance (one-time) before it comes online. For example, if the image selected does not have Java pre-installed, you can add command "sudo yum -y install java". This functionality works for Linux instances only.
    - **Init Script Timeout** - Number of seconds to wait for the completion of Init Script.
@@ -272,7 +272,7 @@ pipeline {
 
 ## Licensing
 
-Copyright (c) 2018, 2024, Oracle and/or its affiliates. All rights reserved.
+Copyright (c) 2018, 2026, Oracle and/or its affiliates. All rights reserved.
 
 This Plugin is licensed under the Universal Permissive License 1.0
 

@@ -182,7 +182,7 @@ public interface BaremetalCloudClient extends AutoCloseable {
      * Get a list of stopped instances on OCI
      *
      * @param compartmentId the compartment id
-     * @param availableDomain available domain
+     * @param availableDomain available domain or null for any AD
      * @return Instance.LifecycleState
      * @throws Exception if an error occurs
      */

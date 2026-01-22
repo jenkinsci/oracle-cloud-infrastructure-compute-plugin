@@ -36,4 +36,18 @@ function validateButtonUsingFindNearBy(checkUrl, paramList, button) {
         });
       });
 
+//    new Ajax.Request(checkUrl, {
+//        parameters: parameters,
+//        onComplete: function(rsp) {
+//            spinner.style.display = 'none';
+//            applyErrorMessage(target, rsp);
+//            layoutUpdateCallback.call();
+//            var s = rsp.getResponseHeader('script');
+//            try {
+//                geval(s);
+//            } catch(e) {
+//                window.alert('failed to evaluate ' + s + '\n' + e.message);
+//            }
+//        }
+//    });
 }

@@ -3,7 +3,6 @@ package com.oracle.cloud.baremetal.jenkins.ssh;
 import hudson.FilePath;
 import hudson.remoting.VirtualChannel;
 import jenkins.MasterToSlaveFileCallable;
-
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -25,7 +24,7 @@ public class FileCreator {
         private String filename;
 
         @Override
-        public Void invoke(File file, VirtualChannel virtualChannel) throws IOException {
+        public Void invoke(File file, VirtualChannel virtualChannel) throws IOException, InterruptedException {
             File newFile = new File(file, filename);
             try (OutputStream outputStream = new FileOutputStream(newFile)) {
                 String content = "";

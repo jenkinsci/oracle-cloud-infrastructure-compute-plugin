@@ -3,6 +3,19 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/).
 
+## 1.0.19 - January 2026
+
+### Added
+- JDK 17
+- Fix Node Provisioning button for newer jenkins update
+- Compartment list retrival optimization
+- Only active compartments would be listed.
+- Compartment Cache logic added
+- Added staggered retry when status 429 is received.
+- Boot volume vpu's selection
+- Specify ocpu and memory for generic shapes
+- Provision for IMDSv2
+
 ## 1.0.18 - July 2024
 
 ### Added

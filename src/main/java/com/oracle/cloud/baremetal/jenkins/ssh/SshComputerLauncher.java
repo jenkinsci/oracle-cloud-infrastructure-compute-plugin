@@ -48,7 +48,7 @@ public class SshComputerLauncher extends ComputerLauncher {
     public SshComputerLauncher(
             final String host,
             final int connectTimeoutMillis,
-            final String jenkinsAgentUser,
+	    final String jenkinsAgentUser,
             final String customJavaPath,
             final String customJVMOpts,
             final String initScript,
@@ -56,7 +56,7 @@ public class SshComputerLauncher extends ComputerLauncher {
             final String sshCredentialsId,
             boolean verificationStrategy) {
         this(host, connectTimeoutMillis, jenkinsAgentUser, customJavaPath, customJVMOpts, initScript,
-                initScriptTimeoutSeconds, sshCredentialsId, DEFAULT_SSH_PORT, verificationStrategy);
+	     initScriptTimeoutSeconds, sshCredentialsId, DEFAULT_SSH_PORT, verificationStrategy);
     }
 
     public SshComputerLauncher(
@@ -97,7 +97,7 @@ public class SshComputerLauncher extends ComputerLauncher {
         } else {
             this.customJVMOpts = " "+customJVMOpts+" ";
         }
-        this.verificationStrategy = verificationStrategy;
+            this.verificationStrategy = verificationStrategy;
     }
 
     @Override
@@ -205,7 +205,7 @@ public class SshComputerLauncher extends ComputerLauncher {
             scp.put(initScript.getBytes("UTF-8"), "init.sh", remoteDirectory, "0700");
             final String initIndicatorFile = "~/.hudson-run-init";
             String initscriptModified = "if [[ -e " + initIndicatorFile + " ]]; then \n" +
-                    " echo 'Agent already initialized " + initIndicatorFile +" exists';\n" +
+            " echo 'Agent already initialized " + initIndicatorFile +" exists';\n" +
                     "else\n" +
                     " echo 'Running init script on agent';\n" +
                     " /bin/bash " + remoteDirectory + "/init.sh;\n" +
@@ -230,9 +230,9 @@ public class SshComputerLauncher extends ComputerLauncher {
             testSession.requestDumbPTY();
             testSession.execCommand("cat ~/initModified.sh");
             initSession.requestDumbPTY();
-            //final String initIndicatorFile = "~/.hudson-run-init";
-            final String initCommand =
-                    "/bin/bash "+remoteDirectory + "/initModified.sh;";
+	    //final String initIndicatorFile = "~/.hudson-run-init";
+	    final String initCommand =
+                "/bin/bash "+remoteDirectory + "/initModified.sh;";
             initSession.execCommand(initCommand);
 
             IOUtils.copy(initSession.getStdout(), listener.getLogger());
@@ -261,15 +261,15 @@ public class SshComputerLauncher extends ComputerLauncher {
     private void copyAgentJar(Connection connection, String remoteDirectory, final TaskListener listener)
             throws IOException, InterruptedException {
 
-        // Delete slave.jar in case it already exists and is owned by a different
-        // user, which could happen if Jenkins Agent User is set.
-        //
-        String deleteString = "sudo rm -f " + remoteDirectory + "/slave.jar";
+	// Delete slave.jar in case it already exists and is owned by a different
+	// user, which could happen if Jenkins Agent User is set.
+	//
+	String deleteString = "sudo rm -f " + remoteDirectory + "/slave.jar";
         listener.getLogger().println("Deleting remote slave.jar if it exists prior to copy ["
-                + deleteString + "]");
+	             + deleteString + "]");
 
         try {
-            connection.exec(deleteString, listener.getLogger());
+                connection.exec(deleteString, listener.getLogger());
         } catch (IOException e) {
             listener.fatalError("Failed trying to delete slave.jar on remote agent ["
                     + e.getMessage() + "] command=[" + deleteString + "]");
@@ -290,9 +290,9 @@ public class SshComputerLauncher extends ComputerLauncher {
     }
 
     private void launchAgent(Connection connection,
-                             String remoteDirectory,
-                             final SlaveComputer computer,
-                             final TaskListener listener)
+            String remoteDirectory,
+            final SlaveComputer computer,
+            final TaskListener listener)
             throws IOException,
             InterruptedException {
 
@@ -307,22 +307,22 @@ public class SshComputerLauncher extends ComputerLauncher {
             listener.getLogger().println("Jenkins Agent User is empty, default opc.");
         } else {
             launchString = "sudo chown " + jenkinsAgentUser + " " + jarfile +
-                    " && sudo -i -u " + jenkinsAgentUser + " " + launchString;
+	                  " && sudo -i -u " + jenkinsAgentUser + " " + launchString;
         }
 
         listener.getLogger().println("Launching Agent (via Trilead SSH2 Connection): "
-                + launchString);
+	          + launchString);
 
         Session session = connection.openSession();
         try {
             session.execCommand(launchString);
             computer.setChannel(session.getStdout(), session.getStdin(), listener.getLogger(), new Listener() {
-                @Override
-                public void onClosed(Channel channel, IOException cause) {
-                    tearDownSession(session, listener);
-                    tearDownConnection(connection, listener);
-                }
-            });
+                        @Override
+                        public void onClosed(Channel channel, IOException cause) {
+                            tearDownSession(session, listener);
+                            tearDownConnection(connection, listener);
+                        }
+                    });
         } catch (IOException e) {
             tearDownSession(session, listener);
             listener.fatalError("Failed to launch Agent");

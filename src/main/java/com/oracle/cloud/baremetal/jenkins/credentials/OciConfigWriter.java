@@ -83,11 +83,11 @@ public class OciConfigWriter implements Serializable {
     private String getConfigText(final Path keyFile) throws IOException {
         try(final InputStream stream = getClass().getResourceAsStream("config.template")) {
             return new String(stream.readAllBytes(), StandardCharsets.UTF_8)
-                    .replaceAll("%USER%", user)
-                    .replaceAll("%FINGERPRINT%", fingerprint)
-                    .replaceAll("%TENANCY%", tenancy)
-                    .replaceAll("%REGION%", region)
-                    .replaceAll("%KEY_FILE_PATH%", keyFile.toString());
+                .replaceAll("%USER%", user)
+                .replaceAll("%FINGERPRINT%", fingerprint)
+                .replaceAll("%TENANCY%", tenancy)
+                .replaceAll("%REGION%", region)
+                .replaceAll("%KEY_FILE_PATH%", keyFile.toString());
         }
     }
 
@@ -95,20 +95,20 @@ public class OciConfigWriter implements Serializable {
         final Path keyFile = dir.toPath().resolve("oci.pem");
         final Path config = dir.toPath().resolve("oci.config");
         final String text = getConfigText(keyFile);
-        try(final BufferedWriter writer =
-                    Files.newBufferedWriter(
-                            keyFile,
-                            StandardOpenOption.WRITE,
-                            StandardOpenOption.CREATE,
-                            StandardOpenOption.TRUNCATE_EXISTING)) {
+        try(final BufferedWriter writer = 
+                Files.newBufferedWriter(
+                        keyFile,
+                        StandardOpenOption.WRITE,
+                        StandardOpenOption.CREATE,
+                        StandardOpenOption.TRUNCATE_EXISTING)) {
             writer.write(keyFileContents);
         }
-        try(final BufferedWriter writer =
-                    Files.newBufferedWriter(
-                            config,
-                            StandardOpenOption.WRITE,
-                            StandardOpenOption.CREATE,
-                            StandardOpenOption.TRUNCATE_EXISTING)) {
+        try(final BufferedWriter writer = 
+                Files.newBufferedWriter(
+                        config,
+                        StandardOpenOption.WRITE,
+                        StandardOpenOption.CREATE,
+                        StandardOpenOption.TRUNCATE_EXISTING)) {
             writer.write(text);
         }
         Map<String, String> env = new HashMap<>();
