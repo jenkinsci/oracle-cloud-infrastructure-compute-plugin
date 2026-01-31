@@ -235,7 +235,7 @@ public class BaremetalCloud extends AbstractCloudImpl{
 
     private BaremetalCloudAgent provision(String name, BaremetalCloudAgentTemplate template, String instanceName) throws Exception {
         LOGGER.info("Provisioning new cloud infrastructure instance");
-	    boolean using_stopped_instance = false;
+	boolean using_stopped_instance = false;
         try {
             BaremetalCloudClient client = getClient();
             Instance instance = null;
@@ -345,7 +345,7 @@ public class BaremetalCloud extends AbstractCloudImpl{
         public String getCloudName() {
             return cloudName;
         }
-
+        
         public int getTemplateId() {
             return templateId;
         }

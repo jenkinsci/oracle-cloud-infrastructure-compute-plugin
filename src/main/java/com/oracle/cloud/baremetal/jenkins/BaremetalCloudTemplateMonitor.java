@@ -118,7 +118,7 @@ public class BaremetalCloudTemplateMonitor extends AsyncPeriodicWork{
                 oldTemplate.labelString,
                 oldTemplate.idleTerminationMinutes,
                 oldTemplate.templateId,
-                oldTemplate.jenkinsAgentUser,
+		oldTemplate.jenkinsAgentUser,
                 oldTemplate.customJavaPath,
                 oldTemplate.customJVMOpts,
                 oldTemplate.initScript,
@@ -135,7 +135,8 @@ public class BaremetalCloudTemplateMonitor extends AsyncPeriodicWork{
                 oldTemplate.getInstanceNamePrefix(),
                 oldTemplate.getMemoryInGBs(),
                 oldTemplate.getDoNotDisable(),
-                oldTemplate.retryTimeoutMins
+                oldTemplate.retryTimeoutMins,
+                oldTemplate.disableLegacyImdsEndpoint
         );
 
     }

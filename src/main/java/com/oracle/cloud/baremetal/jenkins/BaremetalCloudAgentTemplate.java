@@ -3,18 +3,22 @@ package com.oracle.cloud.baremetal.jenkins;
 import com.cloudbees.plugins.credentials.CredentialsProvider;
 import com.cloudbees.plugins.credentials.common.StandardListBoxModel;
 import com.cloudbees.plugins.credentials.domains.DomainRequirement;
+
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+
 import com.cloudbees.jenkins.plugins.sshcredentials.SSHAuthenticator;
 import com.cloudbees.jenkins.plugins.sshcredentials.SSHUserPrivateKey;
 
 import javax.servlet.ServletException;
 
 import com.oracle.bmc.identity.model.Tenancy;
+
 import hudson.EnvVars;
+
 import org.kohsuke.stapler.DataBoundConstructor;
 import org.kohsuke.stapler.QueryParameter;
 
@@ -45,11 +49,13 @@ import hudson.util.Secret;
 import java.util.stream.IntStream;
 
 import jenkins.model.Jenkins;
+
 import org.kohsuke.stapler.AncestorInPath;
 import org.kohsuke.stapler.DataBoundSetter;
 
 public class BaremetalCloudAgentTemplate implements Describable<BaremetalCloudAgentTemplate>{
     private static final Logger LOGGER = Logger.getLogger(BaremetalCloud.class.getName());
+    static final int DEFAULT_VPUS = 10;
     static final int FAILURE_COUNT_LIMIT = 3;
     static final int DISABLE_FAILURE_COUNT_LIMIT = 20;
     private transient boolean templateSleep = false;
@@ -93,6 +99,8 @@ public class BaremetalCloudAgentTemplate implements Describable<BaremetalCloudAg
     public final String memoryInGBs;
     public final Boolean doNotDisable;
     public final String retryTimeoutMins;
+    private long bootVolumeVPUs;
+    public final Boolean disableLegacyImdsEndpoint;
 
     private transient int failureCount=0;
     private transient String disableCause;
@@ -137,7 +145,8 @@ public class BaremetalCloudAgentTemplate implements Describable<BaremetalCloudAg
             final String instanceNamePrefix,
             final String memoryInGBs,
             final Boolean doNotDisable,
-            final String retryTimeoutMins){
+            final String retryTimeoutMins,
+            final Boolean disableLegacyImdsEndpoint){
     	this.compartmentId = compartmentId;
         this.availableDomain = availableDomain;
         this.vcnCompartmentId = vcnCompartmentId;
@@ -176,6 +185,7 @@ public class BaremetalCloudAgentTemplate implements Describable<BaremetalCloudAg
         this.doNotDisable = doNotDisable;
         this.retryTimeoutMins = retryTimeoutMins;
         this.verificationStrategy = verificationStrategy;
+        this.disableLegacyImdsEndpoint = disableLegacyImdsEndpoint;
     }
 
     public String getCompartmentId() {
@@ -260,11 +270,11 @@ public class BaremetalCloudAgentTemplate implements Describable<BaremetalCloudAg
     }
 
     public Boolean getAssignPublicIP() {
-        return assignPublicIP;
+    	return assignPublicIP;
     }
 
     public Boolean getUsePublicIP() {
-        return usePublicIP;
+    	return usePublicIP;
     }
 
     public int getNumExecutors() {
@@ -370,6 +380,17 @@ public class BaremetalCloudAgentTemplate implements Describable<BaremetalCloudAg
         return (memoryInGBs == null  && !numberOfOcpus.isEmpty()) ? Integer.toString(Integer.parseInt(numberOfOcpus)*16) : memoryInGBs;
     }
 
+    public long getBootVolumeVPUs() {
+        // backwards compat - templates created before the addition of this field will be set to 0.
+        // 0 is not an acceptable option for VPUs, so just return the default - 10 (balanced).
+        return bootVolumeVPUs == 0 ? DEFAULT_VPUS : bootVolumeVPUs;
+    }
+
+    @DataBoundSetter
+    public void setBootVolumeVPUs(final long bootVolumeVPUs) {
+        this.bootVolumeVPUs = bootVolumeVPUs;
+    }
+
     public String getPublicKey() throws IOException {
         SSHUserPrivateKey sshCredentials = (SSHUserPrivateKey) BaremetalCloud.matchCredentials(SSHUserPrivateKey.class, this.sshCredentialsId);
         if (sshCredentials != null) {
@@ -393,6 +414,10 @@ public class BaremetalCloudAgentTemplate implements Describable<BaremetalCloudAg
 
     private static FormValidationValue<Integer> checkInitScriptTimeoutSeconds(String value){
         return FormValidationValue.validateNonNegativeInteger(value, 120);
+    }
+
+    public Boolean getDisableLegacyImdsEndpoint() {
+        return disableLegacyImdsEndpoint;
     }
 
     @Override
@@ -479,8 +504,13 @@ public class BaremetalCloudAgentTemplate implements Describable<BaremetalCloudAg
         return this.sleepStartTime;
     }
 
-    @Extension
-    public static class DescriptorImpl extends Descriptor<BaremetalCloudAgentTemplate> {
+@Extension
+public static class DescriptorImpl extends Descriptor<BaremetalCloudAgentTemplate> {
+    private transient Map<String, Tenancy> tenantCache = new HashMap<>();
+    private transient Map<String, List<Compartment>> compartmentsCache = new HashMap<>();
+    private transient Map<String, Long> tenantTimestamp = new HashMap<>();
+    private transient Map<String, Long> compartmentsTimestamp = new HashMap<>();
+    private static final long CACHE_TTL_MS = 30000; // 30 seconds
 
         @Override
         public String getHelpFile(String fieldName) {
@@ -513,20 +543,20 @@ public class BaremetalCloudAgentTemplate implements Describable<BaremetalCloudAg
                 @QueryParameter @RelativePath("..") String maxAsyncThreads,
                 @QueryParameter String subnetId,
                 @QueryParameter Boolean assignPublicIP) {
-            if (subnetId != null && !subnetId.equals("") && (assignPublicIP == null || assignPublicIP)) {
-                BaremetalCloudClient client = getClient(credentialsId, maxAsyncThreads);
+               if (subnetId != null && !subnetId.equals("") && (assignPublicIP == null || assignPublicIP)) {
+                   BaremetalCloudClient client = getClient(credentialsId, maxAsyncThreads);
 
-                try{
-                    GetSubnetResponse subnetResponse = client.getSubNet(subnetId);
-                    if (subnetResponse.getSubnet().getProhibitPublicIpOnVnic()) {
-                        return FormValidation.error(Messages.BaremetalCloudAgentTemplate_assignPublicIP_unable());
-                    }
-                }catch (Exception e) {
-                    LOGGER.log(Level.WARNING, "Failed to get subnet: " + subnetId, e);
-                }
-            }
+                   try{
+                       GetSubnetResponse subnetResponse = client.getSubNet(subnetId);
+                       if (subnetResponse.getSubnet().getProhibitPublicIpOnVnic()) {
+                           return FormValidation.error(Messages.BaremetalCloudAgentTemplate_assignPublicIP_unable());
+                       }
+                   }catch (Exception e) {
+                       LOGGER.log(Level.WARNING, "Failed to get subnet: " + subnetId, e);
+                   }
+               }
 
-            return FormValidation.ok();
+               return FormValidation.ok();
         }
 
         public FormValidation doCheckDoNotDisable(
@@ -542,10 +572,10 @@ public class BaremetalCloudAgentTemplate implements Describable<BaremetalCloudAg
         public FormValidation doCheckUsePublicIP(
                 @QueryParameter Boolean assignPublicIP,
                 @QueryParameter Boolean usePublicIP) {
-            if (usePublicIP != null && assignPublicIP != null && usePublicIP && !assignPublicIP) {
-                return FormValidation.error(Messages.BaremetalCloudAgentTemplate_usePublicIP_unable());
-            }
-            return FormValidation.ok();
+               if (usePublicIP != null && assignPublicIP != null && usePublicIP && !assignPublicIP) {
+                   return FormValidation.error(Messages.BaremetalCloudAgentTemplate_usePublicIP_unable());
+               }
+               return FormValidation.ok();
         }
 
         public FormValidation doCheckInstanceNamePrefix(@QueryParameter String instanceNamePrefix) {
@@ -573,10 +603,23 @@ public class BaremetalCloudAgentTemplate implements Describable<BaremetalCloudAg
             return factory.createClient(credentialsId, Integer.parseInt(maxAsyncThreads));
         }
 
+        public ListBoxModel doFillBootVolumeVPUsItems() throws IOException, ServletException {
+            ListBoxModel model = new ListBoxModel();
+
+            model.add("10 (Balanced)", "10");
+            model.add("20 (Higher Performance)", "20");
+            model.add("30 (Ultra High Performance)", "30");
+            for(int i = 40; i <= 120; i+=10) {
+                model.add(Integer.toString(i), Integer.toString(i));
+            }
+
+            return model;
+        }
+
         public ListBoxModel doFillCompartmentIdItems(
                 @QueryParameter @RelativePath("..") String credentialsId,
                 @QueryParameter @RelativePath("..") String maxAsyncThreads)
-                throws IOException, ServletException {
+                        throws IOException, ServletException {
             ListBoxModel model = new ListBoxModel();
             model.add("<Select a compartmentId>", "");
 
@@ -585,12 +628,11 @@ public class BaremetalCloudAgentTemplate implements Describable<BaremetalCloudAg
             }
 
             try{
-                BaremetalCloudClient client = getClient(credentialsId, maxAsyncThreads);
-                Tenancy tenant = client.getTenant();
+                Tenancy tenant = getTenantCached(credentialsId, maxAsyncThreads);
                 model.add(tenant.getName(), tenant.getId());
-                for (Compartment compartmentId : client.getCompartmentsList()) {
-                    model.add(compartmentId.getName(), compartmentId.getId());
-                }
+                for (Compartment compartment : getCompartmentsCached(credentialsId, maxAsyncThreads)) {
+                        model.add(compartment.getName(), compartment.getId());
+                    }
             }catch (Exception e) {
                 LOGGER.log(Level.WARNING, "Failed to get compartment list", e);
             }
@@ -629,6 +671,7 @@ public class BaremetalCloudAgentTemplate implements Describable<BaremetalCloudAg
                 @QueryParameter @RelativePath("..") String maxAsyncThreads,
                 @QueryParameter String compartmentId) throws IOException, ServletException {
             ListBoxModel model = new ListBoxModel();
+            model.add("<Select a compartmentId>", "");
 
             if (anyRequiredFieldEmpty(credentialsId, compartmentId)) {
                 model.add("<First select 'Compartment'>", "");
@@ -636,12 +679,11 @@ public class BaremetalCloudAgentTemplate implements Describable<BaremetalCloudAg
             }
 
             try{
-                BaremetalCloudClient client = getClient(credentialsId, maxAsyncThreads);
-                Tenancy tenant = client.getTenant();
+                Tenancy tenant = getTenantCached(credentialsId, maxAsyncThreads);
                 model.add(tenant.getName(), tenant.getId());
-                for (Compartment compartment : client.getCompartmentsList()) {
-                    model.add(compartment.getName(), compartment.getId());
-                }
+                for (Compartment compartment : getCompartmentsCached(credentialsId, maxAsyncThreads)) {
+                        model.add(compartment.getName(), compartment.getId());
+                    }
             }catch (Exception e) {
                 LOGGER.log(Level.WARNING, "Failed to get compartment list", e);
             }
@@ -685,9 +727,9 @@ public class BaremetalCloudAgentTemplate implements Describable<BaremetalCloudAg
                 @QueryParameter String compartmentId,
                 @QueryParameter String availableDomain,
                 @QueryParameter String imageId)
-                throws IOException, ServletException {
+                        throws IOException, ServletException {
             ListBoxModel model = new ListBoxModel();
-            model.add("<First select 'Availablity Domain' and 'Image' above>", "");
+            model.add("<First select 'Availability Domain' and 'Image' above>", "");
 
             if (anyRequiredFieldEmpty(credentialsId, compartmentId, imageId)) {
                 return model;
@@ -722,13 +764,13 @@ public class BaremetalCloudAgentTemplate implements Describable<BaremetalCloudAg
 
             if (anyRequiredFieldEmpty(credentialsId, compartmentId, availableDomain, imageId, shape)) {
                 model.clear();
-                model.add("<First select 'Availablity Domain' and 'Image' and 'Shape' above>","");
+                model.add("<First select 'Availability Domain' and 'Image' and 'Shape' above>","");
                 return model;
             }
 
-            if (!shape.contains("Flex")) {
+            if (!shape.contains("Flex") && !shape.contains("Generic")) {
                 model.clear();
-                model.add("<This field only takes effect for flexible shape if selected>","");
+                model.add("<This field only takes effect for flexible and generic shapes if selected>","");
                 return model;
             }
 
@@ -755,13 +797,13 @@ public class BaremetalCloudAgentTemplate implements Describable<BaremetalCloudAg
 
             if (anyRequiredFieldEmpty(credentialsId, compartmentId, availableDomain, imageId, shape)) {
                 model.clear();
-                model.add("<First select 'Availablity Domain' and 'Image' and 'Shape' above>","");
+                model.add("<First select 'Availability Domain' and 'Image' and 'Shape' above>","");
                 return model;
             }
 
-            if (!shape.contains("Flex")) {
+            if (!shape.contains("Flex") && !shape.contains("Generic")) {
                 model.clear();
-                model.add("<This field only takes effect for flexible shape if selected>","");
+                model.add("<This field only takes effect for flexible and generic shapes if selected>","");
                 return model;
             }
 
@@ -781,6 +823,7 @@ public class BaremetalCloudAgentTemplate implements Describable<BaremetalCloudAg
                 @QueryParameter @RelativePath("..") String maxAsyncThreads,
                 @QueryParameter String compartmentId) throws IOException, ServletException {
             ListBoxModel model = new ListBoxModel();
+            model.add("<Select a compartmentId>", "");
 
             if (anyRequiredFieldEmpty(credentialsId, compartmentId)) {
                 model.add("<First select 'Compartment'>", "");
@@ -788,12 +831,11 @@ public class BaremetalCloudAgentTemplate implements Describable<BaremetalCloudAg
             }
 
             try{
-                BaremetalCloudClient client = getClient(credentialsId, maxAsyncThreads);
-                Tenancy tenant = client.getTenant();
+                Tenancy tenant = getTenantCached(credentialsId, maxAsyncThreads);
                 model.add(tenant.getName(), tenant.getId());
-                for (Compartment compartment : client.getCompartmentsList()) {
-                    model.add(compartment.getName(), compartment.getId());
-                }
+                for (Compartment compartment : getCompartmentsCached(credentialsId, maxAsyncThreads)) {
+                        model.add(compartment.getName(), compartment.getId());
+                    }
             }catch (Exception e) {
                 LOGGER.log(Level.WARNING, "Failed to get compartment list", e);
             }
@@ -833,6 +875,7 @@ public class BaremetalCloudAgentTemplate implements Describable<BaremetalCloudAg
                 @QueryParameter @RelativePath("..") String maxAsyncThreads,
                 @QueryParameter String compartmentId) throws IOException, ServletException {
             ListBoxModel model = new ListBoxModel();
+            model.add("<Select a compartmentId>", "");
 
             if (anyRequiredFieldEmpty(credentialsId, compartmentId)) {
                 model.add("<First select 'Compartment'>", "");
@@ -840,10 +883,9 @@ public class BaremetalCloudAgentTemplate implements Describable<BaremetalCloudAg
             }
 
             try{
-                BaremetalCloudClient client = getClient(credentialsId, maxAsyncThreads);
-                Tenancy tenant = client.getTenant();
+                Tenancy tenant = getTenantCached(credentialsId, maxAsyncThreads);
                 model.add(tenant.getName(), tenant.getId());
-                for (Compartment compartment : client.getCompartmentsList()) {
+                for (Compartment compartment : getCompartmentsCached(credentialsId, maxAsyncThreads)) {
                     model.add(compartment.getName(), compartment.getId());
                 }
             }catch (Exception e) {
@@ -862,7 +904,7 @@ public class BaremetalCloudAgentTemplate implements Describable<BaremetalCloudAg
                 @QueryParameter String vcnCompartmentId,
                 @QueryParameter String subnetCompartmentId) throws IOException, ServletException {
             ListBoxModel model = new ListBoxModel();
-            model.add("<First select 'Availablity Domain' and 'Virtual Cloud Network' above>", "");
+            model.add("<First select 'Availability Domain' and 'Virtual Cloud Network' above>", "");
 
             if (anyRequiredFieldEmpty(credentialsId, availableDomain, vcnId, compartmentId)) {
                 return model;
@@ -886,7 +928,7 @@ public class BaremetalCloudAgentTemplate implements Describable<BaremetalCloudAg
         }
 
         public ListBoxModel doFillSshCredentialsIdItems(
-                @AncestorInPath Item context,
+                @AncestorInPath Item context, 
                 @QueryParameter String sshCredentialsId) {
             StandardListBoxModel result = new StandardListBoxModel();
             Jenkins instance = Jenkins.getInstanceOrNull();
@@ -902,7 +944,7 @@ public class BaremetalCloudAgentTemplate implements Describable<BaremetalCloudAg
 
             List<DomainRequirement> domainRequirements = new ArrayList<DomainRequirement>();
             return result.includeMatchingAs(ACL.SYSTEM, context, SSHUserPrivateKey.class, domainRequirements, SSHAuthenticator.matcher());
-        }
+}
 
         public FormValidation doCheckLabelString(@QueryParameter String value, @QueryParameter Node.Mode mode) {
             if (mode == Node.Mode.EXCLUSIVE && (value == null || value.trim().isEmpty())) {
@@ -927,6 +969,34 @@ public class BaremetalCloudAgentTemplate implements Describable<BaremetalCloudAg
                 return FormValidation.ok();
             }
             return FormValidation.validateNonNegativeInteger(value);
+        }
+
+        private String getCacheKey(String credentialsId, String maxAsyncThreads) {
+            return credentialsId + ":" + maxAsyncThreads;
+        }
+
+        private synchronized Tenancy getTenantCached(String credentialsId, String maxAsyncThreads) throws Exception {
+            String key = getCacheKey(credentialsId, maxAsyncThreads);
+            long now = System.currentTimeMillis();
+            if (!tenantCache.containsKey(key) || (now - tenantTimestamp.getOrDefault(key, 0L) > CACHE_TTL_MS)) {
+                BaremetalCloudClient client = getClient(credentialsId, maxAsyncThreads);
+                Tenancy tenant = client.getTenant();
+                tenantCache.put(key, tenant);
+                tenantTimestamp.put(key, now);
+            }
+            return tenantCache.get(key);
+        }
+
+        private synchronized List<Compartment> getCompartmentsCached(String credentialsId, String maxAsyncThreads) throws Exception {
+            String key = getCacheKey(credentialsId, maxAsyncThreads);
+            long now = System.currentTimeMillis();
+            if (!compartmentsCache.containsKey(key) || (now - compartmentsTimestamp.getOrDefault(key, 0L) > CACHE_TTL_MS)) {
+                BaremetalCloudClient client = getClient(credentialsId, maxAsyncThreads);
+                List<Compartment> list = client.getCompartmentsList();
+                compartmentsCache.put(key, list);
+                compartmentsTimestamp.put(key, now);
+            }
+            return compartmentsCache.get(key);
         }
     }
 }

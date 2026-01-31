@@ -42,7 +42,7 @@ public final class BaremetalCloudCredentialsBinding extends MultiBinding<Baremet
             @NonNull FilePath workspace,
             @Nullable Launcher launcher,
             @NonNull TaskListener listener)
-            throws IOException, InterruptedException {
+        throws IOException, InterruptedException {
         final BaremetalCloudCredentials credentials = getCredentials(build);
         final OciConfigWriter writer = new OciConfigWriter(
                 credentials.getUserId(),
@@ -73,5 +73,5 @@ public final class BaremetalCloudCredentialsBinding extends MultiBinding<Baremet
             return true;
         }
     }
-
+    
 }

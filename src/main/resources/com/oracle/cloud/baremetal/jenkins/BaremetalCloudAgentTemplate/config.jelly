@@ -56,6 +56,10 @@
       <f:select />
     </f:entry>
 
+    <f:entry title="${%bootVolumeVPUs}" field="bootVolumeVPUs">
+      <f:select />
+    </f:entry>
+
     <f:entry title="${%vcnCompartmentId}" field="vcnCompartmentId">
       <f:select />
     </f:entry>
@@ -77,11 +81,11 @@
     </f:entry>
 
     <f:entry title="${%assignPublicIP}" field="assignPublicIP">
-      <f:checkbox default='true'/>
+      <f:checkbox default='false'/>
     </f:entry>
 
     <f:entry title="${%usePublicIP}" field="usePublicIP">
-      <f:checkbox default='true'/>
+      <f:checkbox default='false'/>
     </f:entry>
 
     <f:entry title="${%sshCredentialsId}" field="sshCredentialsId">
@@ -163,6 +167,10 @@
 
       <f:entry title="${%retryTimeoutMinutes}" field="retryTimeoutMins">
 	    <f:textbox default="10" />
+      </f:entry>
+
+      <f:entry title="${%disableLegacyImdsEndpoint}" field="disableLegacyImdsEndpoint">
+        <f:checkbox default='false'/>
       </f:entry>
 
     </f:advanced>

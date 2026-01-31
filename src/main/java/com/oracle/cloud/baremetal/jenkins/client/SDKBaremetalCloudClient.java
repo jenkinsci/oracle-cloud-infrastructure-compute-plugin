@@ -1,14 +1,17 @@
 package com.oracle.cloud.baremetal.jenkins.client;
 
-import com.oracle.bmc.ClientConfiguration;
-
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.Future;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
+import com.oracle.bmc.ClientConfiguration;
 import com.oracle.bmc.ClientRuntime;
+import com.oracle.bmc.auth.BasicAuthenticationDetailsProvider;
 import com.oracle.bmc.auth.InstancePrincipalsAuthenticationDetailsProvider;
 import com.oracle.bmc.auth.SimpleAuthenticationDetailsProvider;
 import com.oracle.bmc.core.ComputeAsyncClient;
@@ -16,9 +19,43 @@ import com.oracle.bmc.core.ComputeClient;
 import com.oracle.bmc.core.ComputeWaiters;
 import com.oracle.bmc.core.VirtualNetworkAsyncClient;
 import com.oracle.bmc.core.VirtualNetworkClient;
-import com.oracle.bmc.core.model.*;
-import com.oracle.bmc.core.requests.*;
-import com.oracle.bmc.core.responses.*;
+import com.oracle.bmc.core.model.CreateVnicDetails;
+import com.oracle.bmc.core.model.Image;
+import com.oracle.bmc.core.model.Instance;
+import com.oracle.bmc.core.model.InstanceOptions;
+import com.oracle.bmc.core.model.InstanceSourceViaImageDetails;
+import com.oracle.bmc.core.model.LaunchInstanceDetails;
+import com.oracle.bmc.core.model.LaunchInstanceShapeConfigDetails;
+import com.oracle.bmc.core.model.NetworkSecurityGroup;
+import com.oracle.bmc.core.model.Shape;
+import com.oracle.bmc.core.model.Subnet;
+import com.oracle.bmc.core.model.Vcn;
+import com.oracle.bmc.core.model.VnicAttachment;
+import com.oracle.bmc.core.requests.GetInstanceRequest;
+import com.oracle.bmc.core.requests.GetSubnetRequest;
+import com.oracle.bmc.core.requests.GetVnicRequest;
+import com.oracle.bmc.core.requests.InstanceActionRequest;
+import com.oracle.bmc.core.requests.LaunchInstanceRequest;
+import com.oracle.bmc.core.requests.ListImagesRequest;
+import com.oracle.bmc.core.requests.ListInstancesRequest;
+import com.oracle.bmc.core.requests.ListNetworkSecurityGroupsRequest;
+import com.oracle.bmc.core.requests.ListShapesRequest;
+import com.oracle.bmc.core.requests.ListSubnetsRequest;
+import com.oracle.bmc.core.requests.ListVcnsRequest;
+import com.oracle.bmc.core.requests.ListVnicAttachmentsRequest;
+import com.oracle.bmc.core.requests.TerminateInstanceRequest;
+import com.oracle.bmc.core.responses.GetInstanceResponse;
+import com.oracle.bmc.core.responses.GetSubnetResponse;
+import com.oracle.bmc.core.responses.GetVnicResponse;
+import com.oracle.bmc.core.responses.InstanceActionResponse;
+import com.oracle.bmc.core.responses.LaunchInstanceResponse;
+import com.oracle.bmc.core.responses.ListImagesResponse;
+import com.oracle.bmc.core.responses.ListInstancesResponse;
+import com.oracle.bmc.core.responses.ListShapesResponse;
+import com.oracle.bmc.core.responses.ListSubnetsResponse;
+import com.oracle.bmc.core.responses.ListVcnsResponse;
+import com.oracle.bmc.core.responses.ListVnicAttachmentsResponse;
+import com.oracle.bmc.core.responses.TerminateInstanceResponse;
 import com.oracle.bmc.identity.Identity;
 import com.oracle.bmc.identity.IdentityAsyncClient;
 import com.oracle.bmc.identity.IdentityClient;
@@ -26,15 +63,20 @@ import com.oracle.bmc.identity.model.AvailabilityDomain;
 import com.oracle.bmc.identity.model.Compartment;
 import com.oracle.bmc.identity.model.TagNamespaceSummary;
 import com.oracle.bmc.identity.model.Tenancy;
-import com.oracle.bmc.identity.requests.*;
+import com.oracle.bmc.identity.requests.GetTenancyRequest;
+import com.oracle.bmc.identity.requests.GetUserRequest;
+import com.oracle.bmc.identity.requests.ListAvailabilityDomainsRequest;
+import com.oracle.bmc.identity.requests.ListCompartmentsRequest;
+import com.oracle.bmc.identity.requests.ListTagNamespacesRequest;
 import com.oracle.bmc.identity.responses.GetTenancyResponse;
 import com.oracle.bmc.identity.responses.ListCompartmentsResponse;
 import com.oracle.bmc.identity.responses.ListTagNamespacesResponse;
 import com.oracle.bmc.model.BmcException;
+import com.oracle.bmc.retrier.RetryConfiguration;
 import com.oracle.cloud.baremetal.jenkins.BaremetalCloudAgentTemplate;
-import com.oracle.bmc.core.model.NetworkSecurityGroup;
 import com.oracle.cloud.baremetal.jenkins.BaremetalCloudNsgTemplate;
 import com.oracle.cloud.baremetal.jenkins.BaremetalCloudTagsTemplate;
+
 import jenkins.model.Jenkins;
 
 /**
@@ -43,93 +85,72 @@ import jenkins.model.Jenkins;
 public class SDKBaremetalCloudClient implements BaremetalCloudClient {
     private static final Logger LOGGER = Logger.getLogger(SDKBaremetalCloudClient.class.getName());
 
-    private SimpleAuthenticationDetailsProvider provider;
+    private BasicAuthenticationDetailsProvider provider;
     private String regionId;
     private ClientConfiguration clientConfig;
-    private InstancePrincipalsAuthenticationDetailsProvider instancePrincipalsProvider;
     private boolean instancePrincipals;
     private String tenantId;
+    private String userId;
 
-    public SDKBaremetalCloudClient(SimpleAuthenticationDetailsProvider provider, String regionId, int maxAsyncThreads) {
+    public SDKBaremetalCloudClient(BasicAuthenticationDetailsProvider provider, String regionId, int maxAsyncThreads, String tenantId, String userId) {
         this.provider = provider;
         this.regionId = regionId;
-        this.clientConfig = ClientConfiguration.builder().maxAsyncThreads(maxAsyncThreads).build();
-        this.tenantId = provider.getTenantId();
+        this.tenantId = tenantId;
+        this.userId = userId;
+        this.clientConfig = ClientConfiguration.builder()
+                // retry on e.g 429
+                .retryConfiguration(RetryConfiguration.SDK_DEFAULT_RETRY_CONFIGURATION)
+                .maxAsyncThreads(maxAsyncThreads)
+                .build();
         ClientRuntime.setClientUserAgent("Oracle-Jenkins/" + Jenkins.VERSION);
     }
 
-    public SDKBaremetalCloudClient(InstancePrincipalsAuthenticationDetailsProvider instancePrincipalsProvider, String regionId, int maxAsyncThreads, String instancePrincipalsTenantId) {
-        this.instancePrincipalsProvider = instancePrincipalsProvider;
-        this.regionId = regionId;
-        this.instancePrincipals = true;
-        this.tenantId = instancePrincipalsTenantId;
-        this.clientConfig = ClientConfiguration.builder().maxAsyncThreads(maxAsyncThreads).build();
-        ClientRuntime.setClientUserAgent("Oracle-Jenkins/" + Jenkins.VERSION);
+    public SDKBaremetalCloudClient(BasicAuthenticationDetailsProvider provider, String regionId, int maxAsyncThreads, String tenantId) {
+        this(provider, regionId, maxAsyncThreads, tenantId, null);
     }
 
+    public SDKBaremetalCloudClient(SimpleAuthenticationDetailsProvider provider, String regionId, int maxAsyncThreads) {
+        this(provider, regionId, maxAsyncThreads, provider.getTenantId(), provider.getUserId());
+    }
 
-    private IdentityClient getIdentityClient() {
+    protected IdentityClient getIdentityClient() {
         IdentityClient identityClient;
-        if (!instancePrincipals) {
-            identityClient = new IdentityClient(provider, null, new HTTPProxyConfigurator());
-        } else {
-            identityClient = new IdentityClient(instancePrincipalsProvider, null, new HTTPProxyConfigurator());
-        }
+        identityClient = new IdentityClient(provider, clientConfig, new HTTPProxyConfigurator());
         identityClient.setRegion(regionId);
         return identityClient;
     }
 
     private IdentityAsyncClient getIdentityAsyncClient() {
         IdentityAsyncClient identityClient;
-        if (!instancePrincipals) {
-            identityClient = new IdentityAsyncClient(provider, clientConfig, new HTTPProxyConfigurator());
-        } else {
-            identityClient = new IdentityAsyncClient(instancePrincipalsProvider, clientConfig, new HTTPProxyConfigurator());
-        }
+        identityClient = new IdentityAsyncClient(provider, clientConfig, new HTTPProxyConfigurator());
         identityClient.setRegion(regionId);
         return identityClient;
     }
 
     private ComputeClient getComputeClient() {
         ComputeClient computeClient;
-        if (!instancePrincipals) {
-            computeClient = new ComputeClient(provider, null, new HTTPProxyConfigurator());
-        } else {
-            computeClient = new ComputeClient(instancePrincipalsProvider, null, new HTTPProxyConfigurator());
-        }
+        computeClient = new ComputeClient(provider, clientConfig, new HTTPProxyConfigurator());
         computeClient.setRegion(regionId);
         return computeClient;
     }
 
     private ComputeAsyncClient getComputeAsyncClient() {
         ComputeAsyncClient computeClient;
-        if (!instancePrincipals) {
-            computeClient = new ComputeAsyncClient(provider, clientConfig, new HTTPProxyConfigurator());
-        } else {
-            computeClient = new ComputeAsyncClient(instancePrincipalsProvider, null, new HTTPProxyConfigurator());
-        }
+        computeClient = new ComputeAsyncClient(provider, clientConfig, new HTTPProxyConfigurator());
         computeClient.setRegion(regionId);
         return computeClient;
     }
 
     private VirtualNetworkClient getVirtualNetworkClient() {
         VirtualNetworkClient networkClient;
-        if (!instancePrincipals) {
-            networkClient = new VirtualNetworkClient(provider, null, new HTTPProxyConfigurator());
-        } else {
-            networkClient = new VirtualNetworkClient(instancePrincipalsProvider, null, new HTTPProxyConfigurator());
-        }
+        networkClient = new VirtualNetworkClient(provider, clientConfig, new HTTPProxyConfigurator());
         networkClient.setRegion(regionId);
         return networkClient;
     }
 
     private VirtualNetworkAsyncClient getVirtualNetworkAsyncClient() {
         VirtualNetworkAsyncClient networkClient;
-        if (!instancePrincipals) {
-            networkClient = new VirtualNetworkAsyncClient(provider, clientConfig, new HTTPProxyConfigurator());
-        } else {
-            networkClient = new VirtualNetworkAsyncClient(instancePrincipalsProvider, null, new HTTPProxyConfigurator());
-        }
+        networkClient = new VirtualNetworkAsyncClient(provider, clientConfig, new HTTPProxyConfigurator());
         networkClient.setRegion(regionId);
         return networkClient;
     }
@@ -137,10 +158,9 @@ public class SDKBaremetalCloudClient implements BaremetalCloudClient {
     @Override
     public void authenticate() throws BmcException {
         Identity identityClient = getIdentityClient();
-
         try{
-            if (!instancePrincipals) {
-                identityClient.getUser(GetUserRequest.builder().userId(provider.getUserId()).build());
+            if (userId != null) {
+                identityClient.getUser(GetUserRequest.builder().userId(userId).build());
             } else {
                 identityClient.getTenancy(GetTenancyRequest.builder().tenancyId(tenantId).build());
             }
@@ -197,6 +217,11 @@ public class SDKBaremetalCloudClient implements BaremetalCloudClient {
                         .collect(Collectors.toList());
             }
 
+            InstanceOptions launchoptions = InstanceOptions
+                    .builder()
+                    .areLegacyImdsEndpointsDisabled(template.getDisableLegacyImdsEndpoint())
+                    .build();
+
             LaunchInstanceDetails.Builder instanceDetailsBuilder = LaunchInstanceDetails
                     .builder()
                     .availabilityDomain(ad)
@@ -208,11 +233,16 @@ public class SDKBaremetalCloudClient implements BaremetalCloudClient {
                                     .nsgIds(nsgIds)
                                     .build())
                     .displayName(name)
-                    .imageId(imageIdStr)
+                    .sourceDetails(
+                            InstanceSourceViaImageDetails.builder()
+                                    .bootVolumeVpusPerGB(template.getBootVolumeVPUs())
+                                    .imageId(imageIdStr)
+                                    .build())
                     .metadata(metadata)
                     .shape(shape)
                     .shapeConfig(shapeConfig)
-                    .subnetId(subnetIdStr);
+                    .subnetId(subnetIdStr)
+                    .instanceOptions(launchoptions);
 
             if(template.getTags() != null) {
                 Map<String,String> freeFormTags = new HashMap<>();
@@ -242,7 +272,7 @@ public class SDKBaremetalCloudClient implements BaremetalCloudClient {
                     .builder()
                     .launchInstanceDetails(
                             instanceDetailsBuilder
-                                    .build())
+                            .build())
                     .build());
 
             instance = response.getInstance();
@@ -274,11 +304,11 @@ public class SDKBaremetalCloudClient implements BaremetalCloudClient {
         try (ComputeClient computeClient = getComputeClient()) {
             ComputeWaiters waiter = computeClient.getWaiters();
             GetInstanceResponse response = waiter.forInstance(
-                            GetInstanceRequest
-                                    .builder()
-                                    .instanceId(instanceId)
-                                    .build(),
-                            Instance.LifecycleState.Running)
+                    GetInstanceRequest
+                    .builder()
+                    .instanceId(instanceId)
+                    .build(),
+                    Instance.LifecycleState.Running)
                     .execute();
             return response.getInstance();
         }
@@ -290,7 +320,7 @@ public class SDKBaremetalCloudClient implements BaremetalCloudClient {
         String Ip = "";
 
         try (ComputeClient computeClient = getComputeClient();
-             VirtualNetworkClient vcnClient = getVirtualNetworkClient()) {
+                VirtualNetworkClient vcnClient = getVirtualNetworkClient()) {
 
             String compartmentId = template.getCompartmentId();
 
@@ -354,7 +384,11 @@ public class SDKBaremetalCloudClient implements BaremetalCloudClient {
             do {
                 builder.page(nextPageToken);
                 Future<ListCompartmentsResponse> listResponse = identityAsyncClient.listCompartments(builder.build(), null);
-                compartmentIds.addAll(listResponse.get().getItems());
+                // Filter only ACTIVE compartments
+            	List<Compartment> activeCompartments = listResponse.get().getItems().stream()
+                	.filter(c -> c.getLifecycleState() == Compartment.LifecycleState.Active)
+                	.collect(Collectors.toList());
+                compartmentIds.addAll(activeCompartments);
                 nextPageToken = listResponse.get().getOpcNextPage();
             } while (nextPageToken != null);
         } catch (Exception e) {
@@ -454,7 +488,7 @@ public class SDKBaremetalCloudClient implements BaremetalCloudClient {
     }
 
     @Override
-    public List<Vcn> getVcnList(String compartmentId) throws Exception {
+    public List<Vcn> getVcnList(String compartmentId) throws Exception {        
         List<Vcn> vcnList = new ArrayList<>();
 
         try (VirtualNetworkAsyncClient vnc = getVirtualNetworkAsyncClient()) {
@@ -536,8 +570,8 @@ public class SDKBaremetalCloudClient implements BaremetalCloudClient {
             ComputeWaiters waiter = computeClient.getWaiters();
             GetInstanceResponse response = waiter.forInstance(
                     GetInstanceRequest.builder()
-                            .instanceId(instanceId)
-                            .build(),
+                    .instanceId(instanceId)
+                    .build(),
                     Instance.LifecycleState.Stopping,
                     Instance.LifecycleState.Stopped,
                     Instance.LifecycleState.Terminating,
@@ -551,7 +585,7 @@ public class SDKBaremetalCloudClient implements BaremetalCloudClient {
         try (ComputeClient computeClient = getComputeClient()) {
             GetInstanceResponse response = computeClient.getInstance(GetInstanceRequest.builder().instanceId(instanceId).build());
             return response.getInstance().getLifecycleState();
-        }
+    	}
     }
 
     @Override

@@ -5,27 +5,21 @@
       <td />
       <td colspan="${monitors.size()+1}">
         <f:form action="${rootURL}/cloud/${it.name}/provisionArguments" method="post" name="provisionArguments">
-
-          <input type="submit" class="compute-provision-button" value="${%provision(it.displayName)}" />
-
-          <select name="templateId">
-            <j:forEach var="t" items="${it.templates}">
-              <j:if test="${t.disableCause==null}">
-                <option value="${t.templateId}">${t.displayName}</option>
-              </j:if>
-            </j:forEach>
-          </select>
-
-          <st:once>
-            <script>
-              Behaviour.register({
-                ".compute-provision-button" : function (e) {
-                  new YAHOO.widget.Button(e, { type: "menu", menu: e.nextSibling });
-                }
-              });
-            </script>
-          </st:once>
-
+          <f:entry>
+            <div class="jenkins-select">
+              <select name="templateId" class="jenkins-select__input select">
+                <j:forEach var="t" items="${it.templates}">
+                  <j:if test="${t.disableCause == null}">
+                    <f:option value="${t.templateId}">${t.displayName}</f:option>
+                  </j:if>
+                  <j:if test="${t.disableCause != null}">
+                    <f:option value="${t.templateId} (disabled, please reconfigure)" disabled="true"></f:option>
+                  </j:if>
+                </j:forEach>
+              </select>
+            </div>
+          </f:entry>
+          <f:submit type="submit" value="${%provision(it.displayName)}"/>
         </f:form>
       </td>
     </tr>

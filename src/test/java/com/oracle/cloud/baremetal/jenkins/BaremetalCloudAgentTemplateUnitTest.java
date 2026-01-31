@@ -280,4 +280,10 @@ public class BaremetalCloudAgentTemplateUnitTest {
         template.resetFailureCount();
         Assert.assertNull(template.getDisableCause());
     }
+
+    @Test
+    public void testBootVolumeVPUsReturnsSensibleDefault() {
+        TestBaremetalCloudAgentTemplate template = new TestBaremetalCloudAgentTemplate();
+        Assert.assertEquals(BaremetalCloudAgentTemplate.DEFAULT_VPUS, template.getBootVolumeVPUs());
+    }
 }
