@@ -25,7 +25,9 @@ import com.oracle.bmc.core.model.Instance;
 import com.oracle.bmc.core.model.InstanceOptions;
 import com.oracle.bmc.core.model.InstanceSourceViaImageDetails;
 import com.oracle.bmc.core.model.LaunchInstanceDetails;
+import com.oracle.bmc.core.model.LaunchInstanceLicensingConfig;
 import com.oracle.bmc.core.model.LaunchInstanceShapeConfigDetails;
+import com.oracle.bmc.core.model.LaunchInstanceWindowsLicensingConfig;
 import com.oracle.bmc.core.model.NetworkSecurityGroup;
 import com.oracle.bmc.core.model.Shape;
 import com.oracle.bmc.core.model.Subnet;
@@ -71,6 +73,7 @@ import com.oracle.bmc.identity.requests.ListTagNamespacesRequest;
 import com.oracle.bmc.identity.responses.GetTenancyResponse;
 import com.oracle.bmc.identity.responses.ListCompartmentsResponse;
 import com.oracle.bmc.identity.responses.ListTagNamespacesResponse;
+import com.oracle.bmc.http.client.HttpProvider;
 import com.oracle.bmc.model.BmcException;
 import com.oracle.bmc.retrier.RetryConfiguration;
 import com.oracle.cloud.baremetal.jenkins.BaremetalCloudAgentTemplate;
@@ -84,6 +87,24 @@ import jenkins.model.Jenkins;
  */
 public class SDKBaremetalCloudClient implements BaremetalCloudClient {
     private static final Logger LOGGER = Logger.getLogger(SDKBaremetalCloudClient.class.getName());
+
+    static {
+        // OCI SDK 3.x discovers its HTTP provider via ServiceLoader using the thread
+        // context classloader. In Jenkins executor threads, that classloader is reset
+        // to Jenkins core's classloader (not the plugin's), so ServiceLoader never
+        // finds the META-INF/services file from oci-java-sdk-common-httpclient-jersey.
+        // Force initialization here with the plugin classloader so the result is
+        // cached in DefaultHolder.DEFAULT before any executor thread runs.
+        ClassLoader original = Thread.currentThread().getContextClassLoader();
+        try {
+            Thread.currentThread().setContextClassLoader(SDKBaremetalCloudClient.class.getClassLoader());
+            HttpProvider.getDefault();
+        } catch (Exception e) {
+            LOGGER.warning("Failed to pre-initialize OCI HTTP provider: " + e.getMessage());
+        } finally {
+            Thread.currentThread().setContextClassLoader(original);
+        }
+    }
 
     private BasicAuthenticationDetailsProvider provider;
     private String regionId;
@@ -243,6 +264,14 @@ public class SDKBaremetalCloudClient implements BaremetalCloudClient {
                     .shapeConfig(shapeConfig)
                     .subnetId(subnetIdStr)
                     .instanceOptions(launchoptions);
+
+            if (Boolean.TRUE.equals(template.getWindowsBYOL())) {
+                instanceDetailsBuilder.licensingConfigs(
+                        java.util.Collections.singletonList(
+                                LaunchInstanceWindowsLicensingConfig.builder()
+                                        .licenseType(LaunchInstanceLicensingConfig.LicenseType.BringYourOwnLicense)
+                                        .build()));
+            }
 
             if(template.getTags() != null) {
                 Map<String,String> freeFormTags = new HashMap<>();

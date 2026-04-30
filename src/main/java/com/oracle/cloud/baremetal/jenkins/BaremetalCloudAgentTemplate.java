@@ -102,6 +102,7 @@ public class BaremetalCloudAgentTemplate implements Describable<BaremetalCloudAg
     private long bootVolumeVPUs;
     public final Boolean disableLegacyImdsEndpoint;
     public final int maxTotalUses;
+    private Boolean windowsBYOL;
 
     private transient int failureCount=0;
     private transient String disableCause;
@@ -480,6 +481,15 @@ public class BaremetalCloudAgentTemplate implements Describable<BaremetalCloudAg
             return newInitScript.append(initScript).toString();
         }
         return initScript;
+    }
+
+    public Boolean getWindowsBYOL() {
+        return windowsBYOL == null ? Boolean.FALSE : windowsBYOL;
+    }
+
+    @DataBoundSetter
+    public void setWindowsBYOL(final Boolean windowsBYOL) {
+        this.windowsBYOL = windowsBYOL;
     }
 
     public Boolean getDoNotDisable() { return doNotDisable; }
