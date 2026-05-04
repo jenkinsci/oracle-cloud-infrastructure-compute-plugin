@@ -135,45 +135,52 @@ public class SDKBaremetalCloudClient implements BaremetalCloudClient {
     }
 
     protected IdentityClient getIdentityClient() {
-        IdentityClient identityClient;
-        identityClient = new IdentityClient(provider, clientConfig, new HTTPProxyConfigurator());
-        identityClient.setRegion(regionId);
-        return identityClient;
+        return IdentityClient.builder()
+                .configuration(clientConfig)
+                .additionalClientConfigurator(new HTTPProxyConfigurator())
+                .region(regionId)
+                .build(provider);
     }
 
     private IdentityAsyncClient getIdentityAsyncClient() {
-        IdentityAsyncClient identityClient;
-        identityClient = new IdentityAsyncClient(provider, clientConfig, new HTTPProxyConfigurator());
-        identityClient.setRegion(regionId);
-        return identityClient;
+        return IdentityAsyncClient.builder()
+                .configuration(clientConfig)
+                .additionalClientConfigurator(new HTTPProxyConfigurator())
+                .region(regionId)
+                .build(provider);
     }
 
     private ComputeClient getComputeClient() {
-        ComputeClient computeClient;
-        computeClient = new ComputeClient(provider, clientConfig, new HTTPProxyConfigurator());
-        computeClient.setRegion(regionId);
-        return computeClient;
+        return ComputeClient.builder()
+                .configuration(clientConfig)
+                .additionalClientConfigurator(new HTTPProxyConfigurator())
+                .region(regionId)
+                .build(provider);
     }
 
     private ComputeAsyncClient getComputeAsyncClient() {
-        ComputeAsyncClient computeClient;
-        computeClient = new ComputeAsyncClient(provider, clientConfig, new HTTPProxyConfigurator());
-        computeClient.setRegion(regionId);
-        return computeClient;
+        return ComputeAsyncClient.builder()
+                .configuration(clientConfig)
+                .additionalClientConfigurator(new HTTPProxyConfigurator())
+                .region(regionId)
+                .build(provider);
     }
 
     private VirtualNetworkClient getVirtualNetworkClient() {
-        VirtualNetworkClient networkClient;
-        networkClient = new VirtualNetworkClient(provider, clientConfig, new HTTPProxyConfigurator());
-        networkClient.setRegion(regionId);
-        return networkClient;
+        return VirtualNetworkClient.builder()
+                .configuration(clientConfig)
+                .additionalClientConfigurator(new HTTPProxyConfigurator())
+                .isStreamWarningEnabled(false)
+                .region(regionId)
+                .build(provider);
     }
 
     private VirtualNetworkAsyncClient getVirtualNetworkAsyncClient() {
-        VirtualNetworkAsyncClient networkClient;
-        networkClient = new VirtualNetworkAsyncClient(provider, clientConfig, new HTTPProxyConfigurator());
-        networkClient.setRegion(regionId);
-        return networkClient;
+        return VirtualNetworkAsyncClient.builder()
+                .configuration(clientConfig)
+                .additionalClientConfigurator(new HTTPProxyConfigurator())
+                .region(regionId)
+                .build(provider);
     }
 
     @Override
