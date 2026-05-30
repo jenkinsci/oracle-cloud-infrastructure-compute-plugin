@@ -43,9 +43,6 @@ public class BaremetalCloudRetentionStrategy extends CloudRetentionStrategy impl
     @Override
     public void taskAccepted(Executor executor, Queue.Task task) {
         BaremetalCloudComputer computer = (BaremetalCloudComputer) executor.getOwner();
-        if (computer == null) {
-            return;
-        }
         BaremetalCloudAgent agent = computer.getNode();
         if (agent != null) {
             int maxTotalUses = agent.maxTotalUses;
@@ -69,9 +66,6 @@ public class BaremetalCloudRetentionStrategy extends CloudRetentionStrategy impl
     @Override
     public void taskCompletedWithProblems(Executor executor, Queue.Task task, long durationMS, Throwable problems) {
         BaremetalCloudComputer computer = (BaremetalCloudComputer) executor.getOwner();
-        if (computer == null) {
-            return;
-        }
         BaremetalCloudAgent agent = computer.getNode();
         if (agent != null) {
             if (computer.countBusy() <= 1 && !computer.isAcceptingTasks()) {
