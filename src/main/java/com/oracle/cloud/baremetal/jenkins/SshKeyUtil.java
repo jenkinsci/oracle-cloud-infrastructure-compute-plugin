@@ -51,7 +51,11 @@ public class SshKeyUtil {
             throws IOException {
         ensureBouncyCastleProvider();
 
-        if (privateSshKey != null && privateSshKey.contains(OPENSSH_PRIVATE_KEY_BEGIN)) {
+        if (privateSshKey == null) {
+            throw new IOException("SSH private key must not be null");
+        }
+
+        if (privateSshKey.contains(OPENSSH_PRIVATE_KEY_BEGIN)) {
             byte[] keyBlob = decodePemBody(privateSshKey);
             if (isEncryptedOpenSshPrivateKey(keyBlob)) {
                 throw new IOException("Encrypted OpenSSH private keys are not supported");
