@@ -5,7 +5,7 @@
   <parent>
     <groupId>org.jenkins-ci.plugins</groupId>
     <artifactId>plugin</artifactId>
-    <version>4.79</version>
+    <version>5.28</version>
     <relativePath />
   </parent>
   <artifactId>oracle-cloud-infrastructure-compute</artifactId>
@@ -14,8 +14,8 @@
 
   <properties>
     <java.level>17</java.level>
-    <oci-java-sdk.version>2.46.0</oci-java-sdk.version>
-    <jenkins.version>2.462.3</jenkins.version>
+    <oci-java-sdk.version>3.77.0</oci-java-sdk.version>
+    <jenkins.version>2.516.3</jenkins.version>
     <enforcer.skip>true</enforcer.skip>
     <maven.compiler.target>17</maven.compiler.target>
     <maven.compiler.source>17</maven.compiler.source>
@@ -80,7 +80,7 @@
     <connection>scm:git:https://github.com/jenkinsci/oracle-cloud-infrastructure-compute-plugin</connection>
     <developerConnection>scm:git:git@github.com:jenkinsci/oracle-cloud-infrastructure-compute-plugin.git</developerConnection>
     <url>https://github.com/jenkinsci/oracle-cloud-infrastructure-compute-plugin</url>
-    <tag>oracle-cloud-infrastructure-compute-1.0.20</tag>
+    <tag>oracle-cloud-infrastructure-compute-1.0.21</tag>
   </scm>
 
   <issueManagement>
@@ -105,8 +105,8 @@
     <dependencies>
       <dependency>
         <groupId>io.jenkins.tools.bom</groupId>
-        <artifactId>bom-2.426.x</artifactId>
-        <version>2907.vcb_35d6f2f7de</version>
+        <artifactId>bom-2.516.x</artifactId>
+        <version>5750.vec44cb_c78352</version>
         <scope>import</scope>
         <type>pom</type>
       </dependency>
@@ -116,22 +116,10 @@
     <dependency>
       <groupId>org.jenkins-ci.plugins</groupId>
       <artifactId>credentials</artifactId>
-      <version>1381.v2c3a_12074da_b_</version>
     </dependency>
     <dependency>
       <groupId>org.jenkins-ci.plugins</groupId>
       <artifactId>ssh-credentials</artifactId>
-      <exclusions>
-        <exclusion>
-          <groupId>org.jenkins-ci</groupId>
-          <artifactId>trilead-ssh2</artifactId>
-        </exclusion>
-      </exclusions>
-    </dependency>
-    <dependency>
-      <groupId>org.jenkins-ci</groupId>
-      <artifactId>trilead-ssh2</artifactId>
-      <version>trilead-ssh2-build-217-jenkins-17</version>
     </dependency>
     <dependency>
       <groupId>org.jenkins-ci.plugins</groupId>
@@ -196,16 +184,12 @@
     </dependency>
     <dependency>
       <groupId>com.oracle.oci.sdk</groupId>
-      <artifactId>oci-java-sdk-common</artifactId>
+      <artifactId>oci-java-sdk-common-httpclient-jersey3</artifactId>
       <version>${oci-java-sdk.version}</version>
       <exclusions>
         <exclusion>
-          <groupId>org.bouncycastle</groupId>
-          <artifactId>bcpkix-jdk15on</artifactId>
-        </exclusion>
-        <exclusion>
-          <groupId>org.bouncycastle</groupId>
-          <artifactId>bcprov-jdk15on</artifactId>
+          <groupId>org.apache.httpcomponents</groupId>
+          <artifactId>*</artifactId>
         </exclusion>
         <exclusion>
           <groupId>org.glassfish.jersey.core</groupId>
@@ -235,9 +219,20 @@
           <groupId>jakarta.annotation</groupId>
           <artifactId>*</artifactId>
         </exclusion>
+      </exclusions>
+    </dependency>
+    <dependency>
+      <groupId>com.oracle.oci.sdk</groupId>
+      <artifactId>oci-java-sdk-common</artifactId>
+      <version>${oci-java-sdk.version}</version>
+      <exclusions>
         <exclusion>
-          <groupId>com.nimbusds</groupId>
-          <artifactId>nimbus-jose-jwt</artifactId>
+          <groupId>com.fasterxml.jackson.core</groupId>
+          <artifactId>*</artifactId>
+        </exclusion>
+        <exclusion>
+          <groupId>jakarta.annotation</groupId>
+          <artifactId>*</artifactId>
         </exclusion>
       </exclusions>
     </dependency>
@@ -253,19 +248,7 @@
     </dependency>
     <dependency>
       <groupId>io.jenkins.plugins</groupId>
-      <artifactId>javax-activation-api</artifactId>
-      <version>1.2.0-7</version>
-    </dependency>
-    <dependency>
-      <groupId>io.jenkins.plugins</groupId>
-      <artifactId>jersey2-api</artifactId>
-      <version>2.44-151.v6df377fff741</version>
-      <exclusions>
-        <exclusion>
-          <groupId>org.codehaus.jettison</groupId>
-          <artifactId>jettison</artifactId>
-        </exclusion>
-      </exclusions>
+      <artifactId>jersey3-api</artifactId>
     </dependency>
     <dependency>
       <groupId>org.jenkins-ci.plugins</groupId>
@@ -285,7 +268,7 @@
     <dependency>
       <groupId>org.mockito</groupId>
       <artifactId>mockito-core</artifactId>
-      <version>4.11.0</version>
+      <version>5.21.0</version>
       <scope>test</scope>
     </dependency>
     <dependency>
@@ -309,6 +292,10 @@
       <groupId>commons-io</groupId>
       <artifactId>commons-io</artifactId>
       <version>2.15.1</version>
+    </dependency>
+    <dependency>
+      <groupId>org.jenkins-ci.plugins</groupId>
+      <artifactId>trilead-api</artifactId>
     </dependency>
   </dependencies>
 
