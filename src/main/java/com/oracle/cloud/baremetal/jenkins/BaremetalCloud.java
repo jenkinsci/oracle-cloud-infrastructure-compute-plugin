@@ -427,7 +427,6 @@ public class BaremetalCloud extends AbstractCloudImpl{
      * @throws ServletException if a servlet exception occurs
      * @throws IOException if a IO error occurs
      */
-    @SuppressFBWarnings("RV_RETURN_VALUE_IGNORED_BAD_PRACTICE")
     public void doProvisionArguments(
             @QueryParameter int templateId,
             StaplerRequest req,

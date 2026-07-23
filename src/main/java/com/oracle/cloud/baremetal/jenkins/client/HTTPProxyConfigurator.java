@@ -1,30 +1,31 @@
 package com.oracle.cloud.baremetal.jenkins.client;
 
-import java.net.HttpURLConnection;
-import javax.ws.rs.client.ClientBuilder;
-
-import org.glassfish.jersey.client.HttpUrlConnectorProvider.ConnectionFactory;
-import org.glassfish.jersey.client.ClientConfig;
-import org.glassfish.jersey.client.HttpUrlConnectorProvider;
+import java.net.Proxy;
 
 import com.oracle.bmc.http.DefaultConfigurator;
+import com.oracle.bmc.http.client.HttpClientBuilder;
+import com.oracle.bmc.http.client.StandardClientProperties;
 
 import hudson.ProxyConfiguration;
+import jenkins.model.Jenkins;
 
 public class HTTPProxyConfigurator extends DefaultConfigurator {
     @Override
-    public void setConnectorProvider(ClientBuilder builder) {
-        ClientConfig clientConfig = new ClientConfig();
+    public void customizeClient(HttpClientBuilder builder) {
+        Jenkins jenkins = Jenkins.getInstanceOrNull();
+        if (jenkins == null) {
+            return;
+        }
 
-        // OCI API HTTP proxy workaround
-        ConnectionFactory connectionFactory = url -> (HttpURLConnection) ProxyConfiguration.open(url);
+        ProxyConfiguration config = jenkins.getProxy();
+        if (config == null || config.getName() == null || config.getName().isEmpty()) {
+            return;
+        }
 
-        // 1) enable workaround for 'patch' requests
-        HttpUrlConnectorProvider provider = new HttpUrlConnectorProvider()
-                .useSetMethodWorkaround()
-                .connectionFactory(connectionFactory);
-
-        clientConfig.connectorProvider(provider);
-        builder.withConfig(clientConfig);
+        Proxy proxy = config.createProxy();
+        if (proxy != null && proxy.type() != Proxy.Type.DIRECT) {
+            builder.property(StandardClientProperties.PROXY,
+                    new com.oracle.bmc.http.client.ProxyConfiguration(proxy));
+        }
     }
 }

@@ -12,7 +12,6 @@ import java.util.stream.Collectors;
 import com.oracle.bmc.ClientConfiguration;
 import com.oracle.bmc.ClientRuntime;
 import com.oracle.bmc.auth.BasicAuthenticationDetailsProvider;
-import com.oracle.bmc.auth.InstancePrincipalsAuthenticationDetailsProvider;
 import com.oracle.bmc.auth.SimpleAuthenticationDetailsProvider;
 import com.oracle.bmc.core.ComputeAsyncClient;
 import com.oracle.bmc.core.ComputeClient;
@@ -25,7 +24,9 @@ import com.oracle.bmc.core.model.Instance;
 import com.oracle.bmc.core.model.InstanceOptions;
 import com.oracle.bmc.core.model.InstanceSourceViaImageDetails;
 import com.oracle.bmc.core.model.LaunchInstanceDetails;
+import com.oracle.bmc.core.model.LaunchInstanceLicensingConfig;
 import com.oracle.bmc.core.model.LaunchInstanceShapeConfigDetails;
+import com.oracle.bmc.core.model.LaunchInstanceWindowsLicensingConfig;
 import com.oracle.bmc.core.model.NetworkSecurityGroup;
 import com.oracle.bmc.core.model.Shape;
 import com.oracle.bmc.core.model.Subnet;
@@ -56,6 +57,7 @@ import com.oracle.bmc.core.responses.ListSubnetsResponse;
 import com.oracle.bmc.core.responses.ListVcnsResponse;
 import com.oracle.bmc.core.responses.ListVnicAttachmentsResponse;
 import com.oracle.bmc.core.responses.TerminateInstanceResponse;
+import com.oracle.bmc.http.client.HttpProvider;
 import com.oracle.bmc.identity.Identity;
 import com.oracle.bmc.identity.IdentityAsyncClient;
 import com.oracle.bmc.identity.IdentityClient;
@@ -92,6 +94,20 @@ public class SDKBaremetalCloudClient implements BaremetalCloudClient {
     private String tenantId;
     private String userId;
 
+    // We need the classloader for HttpProvider itself, not the context class loader.
+    // This is because HttpProvider uses ServiceLoader.load without defining a class loader.
+    // if we do not do this, the context class loader is the main parent class loader
+    // which does not have any of our classes on its classpath.
+    public static void init() {
+        ClassLoader originalLoader = Thread.currentThread().getContextClassLoader();
+        try {
+            Thread.currentThread().setContextClassLoader(HttpProvider.class.getClassLoader());
+            HttpProvider.getDefault();
+        } finally {
+            Thread.currentThread().setContextClassLoader(originalLoader);
+        }
+    }
+
     public SDKBaremetalCloudClient(BasicAuthenticationDetailsProvider provider, String regionId, int maxAsyncThreads, String tenantId, String userId) {
         this.provider = provider;
         this.regionId = regionId;
@@ -102,6 +118,7 @@ public class SDKBaremetalCloudClient implements BaremetalCloudClient {
                 .retryConfiguration(RetryConfiguration.SDK_DEFAULT_RETRY_CONFIGURATION)
                 .maxAsyncThreads(maxAsyncThreads)
                 .build();
+        init();
         ClientRuntime.setClientUserAgent("Oracle-Jenkins/" + Jenkins.VERSION);
     }
 
@@ -114,45 +131,52 @@ public class SDKBaremetalCloudClient implements BaremetalCloudClient {
     }
 
     protected IdentityClient getIdentityClient() {
-        IdentityClient identityClient;
-        identityClient = new IdentityClient(provider, clientConfig, new HTTPProxyConfigurator());
-        identityClient.setRegion(regionId);
-        return identityClient;
+        return IdentityClient.builder()
+                .configuration(clientConfig)
+                .additionalClientConfigurator(new HTTPProxyConfigurator())
+                .region(regionId)
+                .build(provider);
     }
 
     private IdentityAsyncClient getIdentityAsyncClient() {
-        IdentityAsyncClient identityClient;
-        identityClient = new IdentityAsyncClient(provider, clientConfig, new HTTPProxyConfigurator());
-        identityClient.setRegion(regionId);
-        return identityClient;
+        return IdentityAsyncClient.builder()
+                .configuration(clientConfig)
+                .additionalClientConfigurator(new HTTPProxyConfigurator())
+                .region(regionId)
+                .build(provider);
     }
 
     private ComputeClient getComputeClient() {
-        ComputeClient computeClient;
-        computeClient = new ComputeClient(provider, clientConfig, new HTTPProxyConfigurator());
-        computeClient.setRegion(regionId);
-        return computeClient;
+        return ComputeClient.builder()
+                .configuration(clientConfig)
+                .additionalClientConfigurator(new HTTPProxyConfigurator())
+                .region(regionId)
+                .build(provider);
     }
 
     private ComputeAsyncClient getComputeAsyncClient() {
-        ComputeAsyncClient computeClient;
-        computeClient = new ComputeAsyncClient(provider, clientConfig, new HTTPProxyConfigurator());
-        computeClient.setRegion(regionId);
-        return computeClient;
+        return ComputeAsyncClient.builder()
+                .configuration(clientConfig)
+                .additionalClientConfigurator(new HTTPProxyConfigurator())
+                .region(regionId)
+                .build(provider);
     }
 
     private VirtualNetworkClient getVirtualNetworkClient() {
-        VirtualNetworkClient networkClient;
-        networkClient = new VirtualNetworkClient(provider, clientConfig, new HTTPProxyConfigurator());
-        networkClient.setRegion(regionId);
-        return networkClient;
+        return VirtualNetworkClient.builder()
+                .configuration(clientConfig)
+                .additionalClientConfigurator(new HTTPProxyConfigurator())
+                .isStreamWarningEnabled(false)
+                .region(regionId)
+                .build(provider);
     }
 
     private VirtualNetworkAsyncClient getVirtualNetworkAsyncClient() {
-        VirtualNetworkAsyncClient networkClient;
-        networkClient = new VirtualNetworkAsyncClient(provider, clientConfig, new HTTPProxyConfigurator());
-        networkClient.setRegion(regionId);
-        return networkClient;
+        return VirtualNetworkAsyncClient.builder()
+                .configuration(clientConfig)
+                .additionalClientConfigurator(new HTTPProxyConfigurator())
+                .region(regionId)
+                .build(provider);
     }
 
     @Override
@@ -243,6 +267,14 @@ public class SDKBaremetalCloudClient implements BaremetalCloudClient {
                     .shapeConfig(shapeConfig)
                     .subnetId(subnetIdStr)
                     .instanceOptions(launchoptions);
+
+            if (Boolean.TRUE.equals(template.getWindowsBYOL())) {
+                instanceDetailsBuilder.licensingConfigs(
+                        java.util.Collections.singletonList(
+                                LaunchInstanceWindowsLicensingConfig.builder()
+                                        .licenseType(LaunchInstanceLicensingConfig.LicenseType.BringYourOwnLicense)
+                                        .build()));
+            }
 
             if(template.getTags() != null) {
                 Map<String,String> freeFormTags = new HashMap<>();
