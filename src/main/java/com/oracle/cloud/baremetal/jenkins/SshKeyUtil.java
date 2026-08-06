@@ -8,7 +8,7 @@ import java.security.Security;
 import java.util.Arrays;
 
 import org.apache.commons.codec.binary.Base64;
-import org.apache.commons.lang.NotImplementedException;
+import org.apache.commons.lang3.NotImplementedException;
 import org.bouncycastle.asn1.pkcs.PrivateKeyInfo;
 import org.bouncycastle.crypto.params.AsymmetricKeyParameter;
 import org.bouncycastle.crypto.params.DSAPrivateKeyParameters;
