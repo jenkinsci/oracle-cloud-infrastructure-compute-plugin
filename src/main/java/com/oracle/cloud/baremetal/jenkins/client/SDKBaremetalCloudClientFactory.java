@@ -31,6 +31,12 @@ public class SDKBaremetalCloudClientFactory implements BaremetalCloudClientFacto
                 return new SDKBaremetalCloudClient(provider, credentials.getRegionId(), maxAsyncThreads);
             } else {
                 try {
+                    // The OCI SDK discovers its HTTP provider with the thread context
+                    // class loader. Jenkins request and periodic-work threads use a
+                    // parent class loader that cannot see the provider bundled by this
+                    // plugin, so initialize it with the plugin class loader before the
+                    // instance-principals builder performs its IMDS request.
+                    SDKBaremetalCloudClient.init();
                     InstancePrincipalsAuthenticationDetailsProvider provider = InstancePrincipalsAuthenticationDetailsProvider.builder().build(); 
                     return new SDKBaremetalCloudClient(provider, credentials.getRegionId(), maxAsyncThreads, credentials.getTenantId());
                 } catch (Exception e){
