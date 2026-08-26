@@ -260,6 +260,7 @@ public class SDKBaremetalCloudClient implements BaremetalCloudClient {
                     .sourceDetails(
                             InstanceSourceViaImageDetails.builder()
                                     .bootVolumeVpusPerGB(template.getBootVolumeVPUs())
+                                    .bootVolumeSizeInGBs(template.getBootVolumeSizeInGBs() > 0 ? (long) template.getBootVolumeSizeInGBs() : null)
                                     .imageId(imageIdStr)
                                     .build())
                     .metadata(metadata)
@@ -520,7 +521,7 @@ public class SDKBaremetalCloudClient implements BaremetalCloudClient {
     }
 
     @Override
-    public List<Vcn> getVcnList(String compartmentId) throws Exception {        
+    public List<Vcn> getVcnList(String compartmentId) throws Exception {
         List<Vcn> vcnList = new ArrayList<>();
 
         try (VirtualNetworkAsyncClient vnc = getVirtualNetworkAsyncClient()) {

@@ -56,6 +56,10 @@
       <f:select />
     </f:entry>
 
+    <f:entry title="${%bootVolumeSizeInGBs}" field="bootVolumeSizeInGBs">
+      <f:textbox />
+    </f:entry>
+
     <f:entry title="${%bootVolumeVPUs}" field="bootVolumeVPUs">
       <f:select />
     </f:entry>

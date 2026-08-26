@@ -100,6 +100,7 @@ public class BaremetalCloudAgentTemplate implements Describable<BaremetalCloudAg
     public final Boolean doNotDisable;
     public final String retryTimeoutMins;
     private long bootVolumeVPUs;
+    private int bootVolumeSizeInGBs;
     public final Boolean disableLegacyImdsEndpoint;
     public final int maxTotalUses;
     private Boolean windowsBYOL;
@@ -148,6 +149,7 @@ public class BaremetalCloudAgentTemplate implements Describable<BaremetalCloudAg
             final String memoryInGBs,
             final Boolean doNotDisable,
             final String retryTimeoutMins,
+            final int bootVolumeSizeInGBs,
             final Boolean disableLegacyImdsEndpoint,
             final int maxTotalUses){
     	this.compartmentId = compartmentId;
@@ -187,6 +189,7 @@ public class BaremetalCloudAgentTemplate implements Describable<BaremetalCloudAg
         this.memoryInGBs = memoryInGBs;
         this.doNotDisable = doNotDisable;
         this.retryTimeoutMins = retryTimeoutMins;
+        this.bootVolumeSizeInGBs = bootVolumeSizeInGBs;
         this.verificationStrategy = verificationStrategy;
         this.disableLegacyImdsEndpoint = disableLegacyImdsEndpoint;
         this.maxTotalUses = maxTotalUses;
@@ -393,6 +396,15 @@ public class BaremetalCloudAgentTemplate implements Describable<BaremetalCloudAg
     @DataBoundSetter
     public void setBootVolumeVPUs(final long bootVolumeVPUs) {
         this.bootVolumeVPUs = bootVolumeVPUs;
+    }
+
+    public int getBootVolumeSizeInGBs() {
+        return bootVolumeSizeInGBs;
+    }
+
+    @DataBoundSetter
+    public void setBootVolumeSizeInGBs(final int bootVolumeSizeInGBs) {
+        this.bootVolumeSizeInGBs = bootVolumeSizeInGBs;
     }
 
     public String getPublicKey() throws IOException {
@@ -631,6 +643,17 @@ public static class DescriptorImpl extends Descriptor<BaremetalCloudAgentTemplat
             }
 
             return model;
+        }
+
+        public FormValidation doCheckBootVolumeSizeInGBs(@QueryParameter int bootVolumeSizeInGBs) {
+            if (bootVolumeSizeInGBs == 0) {
+                // 0 means use default, which is valid
+                return FormValidation.ok();
+            }
+            if (bootVolumeSizeInGBs > 0) {
+                return FormValidation.ok();
+            }
+            return FormValidation.error(Messages.BaremetalCloudAgentTemplate_invalid_boot_volume_size());
         }
 
         public ListBoxModel doFillCompartmentIdItems(
@@ -945,7 +968,7 @@ public static class DescriptorImpl extends Descriptor<BaremetalCloudAgentTemplat
         }
 
         public ListBoxModel doFillSshCredentialsIdItems(
-                @AncestorInPath Item context, 
+                @AncestorInPath Item context,
                 @QueryParameter String sshCredentialsId) {
             StandardListBoxModel result = new StandardListBoxModel();
             Jenkins instance = Jenkins.getInstanceOrNull();
