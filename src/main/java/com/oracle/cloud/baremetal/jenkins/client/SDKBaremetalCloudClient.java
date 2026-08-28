@@ -86,6 +86,7 @@ import jenkins.model.Jenkins;
  */
 public class SDKBaremetalCloudClient implements BaremetalCloudClient {
     private static final Logger LOGGER = Logger.getLogger(SDKBaremetalCloudClient.class.getName());
+    private static final String IMAGE_OCID_PREFIX = "ocid1.image.";
 
     private BasicAuthenticationDetailsProvider provider;
     private String regionId;
@@ -154,7 +155,7 @@ public class SDKBaremetalCloudClient implements BaremetalCloudClient {
                 .build(provider);
     }
 
-    private ComputeAsyncClient getComputeAsyncClient() {
+    protected ComputeAsyncClient getComputeAsyncClient() {
         return ComputeAsyncClient.builder()
                 .configuration(clientConfig)
                 .additionalClientConfigurator(new HTTPProxyConfigurator())
@@ -209,7 +210,15 @@ public class SDKBaremetalCloudClient implements BaremetalCloudClient {
             String ad = template.getAvailableDomain();
             String compartmentIdStr = template.getCompartmentId();
             String subnetIdStr = template.getSubnet();
-            String imageIdStr = template.getImageId();
+            String imageCompartmentIdStr = template.getImageCompartmentId();
+            if (imageCompartmentIdStr == null || imageCompartmentIdStr.isEmpty()) {
+                imageCompartmentIdStr = compartmentIdStr;
+            }
+            String imageIdStr = resolveImageId(imageCompartmentIdStr, template.getImageId());
+            if (imageIdStr == null) {
+                throw new IllegalStateException("No AVAILABLE image found for name '" + template.getImageId()
+                        + "' in compartment " + imageCompartmentIdStr);
+            }
             String shape = template.getShape();
             String sshPublicKey = template.getPublicKey();
 
@@ -469,6 +478,39 @@ public class SDKBaremetalCloudClient implements BaremetalCloudClient {
     }
 
     @Override
+    public String resolveImageId(String compartmentId, String imageNameOrOcid) throws Exception {
+        if (imageNameOrOcid != null && imageNameOrOcid.startsWith(IMAGE_OCID_PREFIX)) {
+            return imageNameOrOcid;
+        }
+        return getImageIdByName(compartmentId, imageNameOrOcid);
+    }
+
+    // Resolves a display name to the newest AVAILABLE image OCID in the compartment.
+    private String getImageIdByName(String compartmentId, String displayName) throws Exception {
+        if (displayName == null || displayName.isEmpty()) {
+            return null;
+        }
+        try (ComputeAsyncClient computeAsyncClient = getComputeAsyncClient()) {
+            ListImagesRequest request = ListImagesRequest.builder()
+                    .compartmentId(compartmentId)
+                    .displayName(displayName)
+                    .lifecycleState(Image.LifecycleState.Available)
+                    .sortBy(ListImagesRequest.SortBy.Timecreated)
+                    .sortOrder(ListImagesRequest.SortOrder.Desc)
+                    .build();
+            Future<ListImagesResponse> response = computeAsyncClient.listImages(request, null);
+            List<Image> images = response.get().getItems();
+            if (images == null || images.isEmpty()) {
+                return null;
+            }
+            return images.get(0).getId();
+        } catch (Exception e) {
+            LOGGER.log(Level.WARNING, "Failed to resolve image OCID for display name " + displayName, e);
+            throw e;
+        }
+    }
+
+    @Override
     public List<Shape> getShapesList(String compartmentId, String availableDomain, String imageId) throws Exception {
         List<Shape> shapeList = new ArrayList<>();
 
@@ -520,7 +562,7 @@ public class SDKBaremetalCloudClient implements BaremetalCloudClient {
     }
 
     @Override
-    public List<Vcn> getVcnList(String compartmentId) throws Exception {        
+    public List<Vcn> getVcnList(String compartmentId) throws Exception {
         List<Vcn> vcnList = new ArrayList<>();
 
         try (VirtualNetworkAsyncClient vnc = getVirtualNetworkAsyncClient()) {

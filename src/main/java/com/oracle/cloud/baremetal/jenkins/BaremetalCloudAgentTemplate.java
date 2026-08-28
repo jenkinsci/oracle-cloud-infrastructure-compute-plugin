@@ -92,6 +92,7 @@ public class BaremetalCloudAgentTemplate implements Describable<BaremetalCloudAg
     public final String initScriptTimeoutSeconds;
     public final String instanceCap;
     public final String numberOfOcpus;
+    // Retained for backward-compatible deserialization of existing config.xml; no longer used.
     public final Boolean autoImageUpdate;
     public final Boolean stopOnIdle;
     public final List<BaremetalCloudTagsTemplate> tags;
@@ -235,10 +236,6 @@ public class BaremetalCloudAgentTemplate implements Describable<BaremetalCloudAg
     @DataBoundSetter
     public void setImageId(final String imageId) {
         this.imageId = imageId;
-    }
-
-    public Boolean getAutoImageUpdate() {
-        return autoImageUpdate == null ? Boolean.FALSE : autoImageUpdate;
     }
 
     public String getShape() {
@@ -712,7 +709,8 @@ public static class DescriptorImpl extends Descriptor<BaremetalCloudAgentTemplat
                 @QueryParameter @RelativePath("..") String credentialsId,
                 @QueryParameter @RelativePath("..") String maxAsyncThreads,
                 @QueryParameter String compartmentId,
-                @QueryParameter String imageCompartmentId) throws IOException, ServletException {
+                @QueryParameter String imageCompartmentId,
+                @QueryParameter String imageId) throws IOException, ServletException {
             ListBoxModel model = new ListBoxModel();
             model.add("<Select an Image>", "");
             if (anyRequiredFieldEmpty(credentialsId, compartmentId)) {
@@ -726,11 +724,24 @@ public static class DescriptorImpl extends Descriptor<BaremetalCloudAgentTemplat
                 BaremetalCloudClient client = getClient(credentialsId, maxAsyncThreads);
                 List<String>  lstImage = new ArrayList<String>();
 
-                for (Image imageId : client.getImagesList(imageCompartmentId)) {
-                    if (!lstImage.contains(imageId.getId())) {
-                        model.add(imageId.getDisplayName(), imageId.getId());
-                        lstImage.add(imageId.getId());
+                // A pre-feature config stores an image OCID; map it back to the current display name to keep it selected.
+                String legacyOcidName = null;
+                for (Image image : client.getImagesList(imageCompartmentId)) {
+                    String displayName = image.getDisplayName();
+                    if (imageId != null && imageId.equals(image.getId())) {
+                        legacyOcidName = displayName;
                     }
+                    if (!lstImage.contains(displayName)) {
+                        model.add(displayName, displayName);
+                        lstImage.add(displayName);
+                    }
+                }
+                if (legacyOcidName != null) {
+                    for (ListBoxModel.Option option : model) {
+                        option.selected = legacyOcidName.equals(option.value);
+                    }
+                } else if (imageId != null && imageId.startsWith("ocid1.image.")) {
+                    model.add(new ListBoxModel.Option(imageId, imageId, true));
                 }
             } catch (Exception e) {
                 LOGGER.log(Level.WARNING, "Failed to get images list", e);
@@ -743,6 +754,7 @@ public static class DescriptorImpl extends Descriptor<BaremetalCloudAgentTemplat
                 @QueryParameter @RelativePath("..") String maxAsyncThreads,
                 @QueryParameter String compartmentId,
                 @QueryParameter String availableDomain,
+                @QueryParameter String imageCompartmentId,
                 @QueryParameter String imageId)
                         throws IOException, ServletException {
             ListBoxModel model = new ListBoxModel();
@@ -752,11 +764,16 @@ public static class DescriptorImpl extends Descriptor<BaremetalCloudAgentTemplat
                 return model;
             }
 
+            if (anyRequiredFieldEmpty(imageCompartmentId)) {
+                imageCompartmentId = compartmentId;
+            }
+
             try {
                 BaremetalCloudClient client = getClient(credentialsId, maxAsyncThreads);
                 List<String>  lstShape = new ArrayList<String>();
 
-                for (Shape shape : client.getShapesList(compartmentId, availableDomain, imageId)) {
+                String resolvedImageId = client.resolveImageId(imageCompartmentId, imageId);
+                for (Shape shape : client.getShapesList(compartmentId, availableDomain, resolvedImageId)) {
                     if (!lstShape.contains(shape.getShape())) {
                         model.add(shape.getShape(), shape.getShape());
                         lstShape.add(shape.getShape());
@@ -774,6 +791,7 @@ public static class DescriptorImpl extends Descriptor<BaremetalCloudAgentTemplat
                 @QueryParameter @RelativePath("..") String maxAsyncThreads,
                 @QueryParameter String compartmentId,
                 @QueryParameter String availableDomain,
+                @QueryParameter String imageCompartmentId,
                 @QueryParameter String imageId,
                 @QueryParameter String shape)
                 throws IOException, ServletException {
@@ -791,10 +809,15 @@ public static class DescriptorImpl extends Descriptor<BaremetalCloudAgentTemplat
                 return model;
             }
 
+            if (anyRequiredFieldEmpty(imageCompartmentId)) {
+                imageCompartmentId = compartmentId;
+            }
+
             try {
                 model.clear();
                 BaremetalCloudClient client = getClient(credentialsId, maxAsyncThreads);
-                Integer[] ocpuOptions = client.getMinMaxOcpus(compartmentId, availableDomain, imageId, shape);
+                String resolvedImageId = client.resolveImageId(imageCompartmentId, imageId);
+                Integer[] ocpuOptions = client.getMinMaxOcpus(compartmentId, availableDomain, resolvedImageId, shape);
                 IntStream.range(ocpuOptions[0], ocpuOptions[1]+1).forEach(n -> model.add(Integer.toString(n)));
             } catch (Exception e) {
                 LOGGER.log(Level.WARNING, "Failed to get ocpus options list", e);
@@ -807,6 +830,7 @@ public static class DescriptorImpl extends Descriptor<BaremetalCloudAgentTemplat
                 @QueryParameter @RelativePath("..") String maxAsyncThreads,
                 @QueryParameter String compartmentId,
                 @QueryParameter String availableDomain,
+                @QueryParameter String imageCompartmentId,
                 @QueryParameter String imageId,
                 @QueryParameter String shape)
                 throws IOException, ServletException {
@@ -824,10 +848,15 @@ public static class DescriptorImpl extends Descriptor<BaremetalCloudAgentTemplat
                 return model;
             }
 
+            if (anyRequiredFieldEmpty(imageCompartmentId)) {
+                imageCompartmentId = compartmentId;
+            }
+
             try {
                 model.clear();
                 BaremetalCloudClient client = getClient(credentialsId, maxAsyncThreads);
-                Integer[] memoryOptions = client.getMinMaxMemory(compartmentId, availableDomain, imageId, shape);
+                String resolvedImageId = client.resolveImageId(imageCompartmentId, imageId);
+                Integer[] memoryOptions = client.getMinMaxMemory(compartmentId, availableDomain, resolvedImageId, shape);
                 IntStream.range(memoryOptions[0], memoryOptions[1]+1).forEach(n -> model.add(Integer.toString(n)));
             } catch (Exception e) {
                 LOGGER.log(Level.WARNING, "Failed to get memory options list", e);
@@ -945,7 +974,7 @@ public static class DescriptorImpl extends Descriptor<BaremetalCloudAgentTemplat
         }
 
         public ListBoxModel doFillSshCredentialsIdItems(
-                @AncestorInPath Item context, 
+                @AncestorInPath Item context,
                 @QueryParameter String sshCredentialsId) {
             StandardListBoxModel result = new StandardListBoxModel();
             Jenkins instance = Jenkins.getInstanceOrNull();
