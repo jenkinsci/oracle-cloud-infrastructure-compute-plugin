@@ -251,16 +251,22 @@ public class BaremetalCloud extends AbstractCloudImpl{
                     } else {
                         searchName = INSTANCE_NAME_PREFIX + template.getInstanceNamePrefix() + "-" + JENKINS_IP + "-";
                     }
+                    // Template stores the image display name; instances report an OCID, so resolve before comparing.
+                    String imageCompartmentId = template.getImageCompartmentId();
+                    if (imageCompartmentId == null || imageCompartmentId.isEmpty()) {
+                        imageCompartmentId = template.getCompartmentId();
+                    }
+                    String resolvedImageId = client.resolveImageId(imageCompartmentId, template.getImageId());
                     long numberOfSuitableInstances = allStoppedInstances.stream()
                             .filter(n -> n.getDisplayName().contains(searchName))
                             .filter(n -> n.getShape().equals(template.getShape()))
-                            .filter(n -> n.getImageId().equals(template.getImageId()))
+                            .filter(n -> n.getImageId().equals(resolvedImageId))
                             .count();
                     if (numberOfSuitableInstances > 0) {
                         String instanceId = allStoppedInstances.stream()
                                 .filter(n -> n.getDisplayName().contains(searchName))
                                 .filter(n -> n.getShape().equals(template.getShape()))
-                                .filter(n -> n.getImageId().equals(template.getImageId()))
+                                .filter(n -> n.getImageId().equals(resolvedImageId))
                                 .findAny().get().getId();
                         using_stopped_instance = true;
                         instance = client.startInstance(instanceId);
@@ -345,7 +351,7 @@ public class BaremetalCloud extends AbstractCloudImpl{
         public String getCloudName() {
             return cloudName;
         }
-        
+
         public int getTemplateId() {
             return templateId;
         }

@@ -4,7 +4,12 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
+import java.util.concurrent.FutureTask;
+import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
@@ -86,6 +91,26 @@ import jenkins.model.Jenkins;
  */
 public class SDKBaremetalCloudClient implements BaremetalCloudClient {
     private static final Logger LOGGER = Logger.getLogger(SDKBaremetalCloudClient.class.getName());
+    private static final String IMAGE_OCID_PREFIX = "ocid1.image.";
+
+    // Short-lived cache of image display-name -> OCID resolutions, shared across all clients so a
+    // provisioning burst does not issue a ListImages call per node (which can trigger OCI 429 throttling).
+    private static final long IMAGE_RESOLVE_TTL_NANOS = TimeUnit.SECONDS.toNanos(30);
+    private static final int IMAGE_RESOLVE_MAX_RETRIES = 6;
+    private static final long IMAGE_RESOLVE_BASE_BACKOFF_MILLIS = 1_000L;
+    private static final long IMAGE_RESOLVE_MAX_BACKOFF_MILLIS = 20_000L;
+    private static final ConcurrentHashMap<String, ImageResolution> IMAGE_RESOLVE_CACHE = new ConcurrentHashMap<>();
+    private static final ConcurrentHashMap<String, Future<String>> IMAGE_RESOLVE_INFLIGHT = new ConcurrentHashMap<>();
+
+    private static final class ImageResolution {
+        private final String imageId;
+        private final long expiresAtNanos;
+
+        ImageResolution(String imageId, long expiresAtNanos) {
+            this.imageId = imageId;
+            this.expiresAtNanos = expiresAtNanos;
+        }
+    }
 
     private BasicAuthenticationDetailsProvider provider;
     private String regionId;
@@ -154,7 +179,7 @@ public class SDKBaremetalCloudClient implements BaremetalCloudClient {
                 .build(provider);
     }
 
-    private ComputeAsyncClient getComputeAsyncClient() {
+    protected ComputeAsyncClient getComputeAsyncClient() {
         return ComputeAsyncClient.builder()
                 .configuration(clientConfig)
                 .additionalClientConfigurator(new HTTPProxyConfigurator())
@@ -209,7 +234,15 @@ public class SDKBaremetalCloudClient implements BaremetalCloudClient {
             String ad = template.getAvailableDomain();
             String compartmentIdStr = template.getCompartmentId();
             String subnetIdStr = template.getSubnet();
-            String imageIdStr = template.getImageId();
+            String imageCompartmentIdStr = template.getImageCompartmentId();
+            if (imageCompartmentIdStr == null || imageCompartmentIdStr.isEmpty()) {
+                imageCompartmentIdStr = compartmentIdStr;
+            }
+            String imageIdStr = resolveImageId(imageCompartmentIdStr, template.getImageId());
+            if (imageIdStr == null) {
+                throw new IllegalStateException("No AVAILABLE image found for name '" + template.getImageId()
+                        + "' in compartment " + imageCompartmentIdStr);
+            }
             String shape = template.getShape();
             String sshPublicKey = template.getPublicKey();
 
@@ -469,6 +502,115 @@ public class SDKBaremetalCloudClient implements BaremetalCloudClient {
     }
 
     @Override
+    public String resolveImageId(String compartmentId, String imageNameOrOcid) throws Exception {
+        if (imageNameOrOcid != null && imageNameOrOcid.startsWith(IMAGE_OCID_PREFIX)) {
+            return imageNameOrOcid;
+        }
+        if (imageNameOrOcid == null || imageNameOrOcid.isEmpty()) {
+            return null;
+        }
+        String cacheKey = compartmentId + "|" + imageNameOrOcid;
+        ImageResolution cached = IMAGE_RESOLVE_CACHE.get(cacheKey);
+        if (cached != null && System.nanoTime() < cached.expiresAtNanos) {
+            return cached.imageId;
+        }
+        return resolveSingleFlight(cacheKey, compartmentId, imageNameOrOcid);
+    }
+
+    // Coalesces concurrent cache misses for the same image so only one ListImages call runs per name.
+    private String resolveSingleFlight(String cacheKey, String compartmentId, String displayName) throws Exception {
+        FutureTask<String> task = new FutureTask<>(() -> {
+            ImageResolution fresh = IMAGE_RESOLVE_CACHE.get(cacheKey);
+            if (fresh != null && System.nanoTime() < fresh.expiresAtNanos) {
+                return fresh.imageId;
+            }
+            String resolved = getImageIdByName(compartmentId, displayName);
+            IMAGE_RESOLVE_CACHE.put(cacheKey, new ImageResolution(resolved, System.nanoTime() + IMAGE_RESOLVE_TTL_NANOS));
+            return resolved;
+        });
+        Future<String> inFlight = IMAGE_RESOLVE_INFLIGHT.computeIfAbsent(cacheKey, k -> task);
+        if (inFlight == task) {
+            try {
+                task.run();
+            } finally {
+                IMAGE_RESOLVE_INFLIGHT.remove(cacheKey, task);
+            }
+        }
+        try {
+            return inFlight.get();
+        } catch (ExecutionException e) {
+            Throwable cause = e.getCause();
+            if (cause instanceof Exception) {
+                throw (Exception) cause;
+            }
+            throw e;
+        }
+    }
+
+    // Resolves a display name to the newest AVAILABLE image OCID in the compartment.
+    private String getImageIdByName(String compartmentId, String displayName) throws Exception {
+        ListImagesRequest request = ListImagesRequest.builder()
+                .compartmentId(compartmentId)
+                .displayName(displayName)
+                .lifecycleState(Image.LifecycleState.Available)
+                .sortBy(ListImagesRequest.SortBy.Timecreated)
+                .sortOrder(ListImagesRequest.SortOrder.Desc)
+                .build();
+        List<Image> images = listImagesWithRetry(request, displayName);
+        if (images == null || images.isEmpty()) {
+            return null;
+        }
+        return images.get(0).getId();
+    }
+
+    // Calls ListImages, retrying with exponential backoff + jitter when OCI throttles with HTTP 429.
+    private List<Image> listImagesWithRetry(ListImagesRequest request, String displayName) throws Exception {
+        int attempt = 0;
+        while (true) {
+            try (ComputeAsyncClient computeAsyncClient = getComputeAsyncClient()) {
+                Future<ListImagesResponse> response = computeAsyncClient.listImages(request, null);
+                return response.get().getItems();
+            } catch (Exception e) {
+                if (isTooManyRequests(e) && attempt < IMAGE_RESOLVE_MAX_RETRIES) {
+                    long backoffMillis = computeBackoffMillis(attempt);
+                    LOGGER.log(Level.WARNING, "ListImages throttled (429) resolving image name {0}; retry {1}/{2} in {3}ms",
+                            new Object[] { displayName, attempt + 1, IMAGE_RESOLVE_MAX_RETRIES, backoffMillis });
+                    try {
+                        Thread.sleep(backoffMillis);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        throw ie;
+                    }
+                    attempt++;
+                    continue;
+                }
+                LOGGER.log(Level.WARNING, "Failed to resolve image OCID for display name " + displayName, e);
+                throw e;
+            }
+        }
+    }
+
+    private static boolean isTooManyRequests(Throwable e) {
+        for (Throwable t = e; t != null; t = t.getCause()) {
+            if (t instanceof BmcException && ((BmcException) t).getStatusCode() == 429) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static long computeBackoffMillis(int attempt) {
+        long exponential = IMAGE_RESOLVE_BASE_BACKOFF_MILLIS << attempt;
+        long capped = Math.min(exponential, IMAGE_RESOLVE_MAX_BACKOFF_MILLIS);
+        return capped + ThreadLocalRandom.current().nextLong(IMAGE_RESOLVE_BASE_BACKOFF_MILLIS);
+    }
+
+    static void clearImageResolutionCache() {
+        IMAGE_RESOLVE_CACHE.clear();
+        IMAGE_RESOLVE_INFLIGHT.clear();
+    }
+
+    @Override
     public List<Shape> getShapesList(String compartmentId, String availableDomain, String imageId) throws Exception {
         List<Shape> shapeList = new ArrayList<>();
 
@@ -520,7 +662,7 @@ public class SDKBaremetalCloudClient implements BaremetalCloudClient {
     }
 
     @Override
-    public List<Vcn> getVcnList(String compartmentId) throws Exception {        
+    public List<Vcn> getVcnList(String compartmentId) throws Exception {
         List<Vcn> vcnList = new ArrayList<>();
 
         try (VirtualNetworkAsyncClient vnc = getVirtualNetworkAsyncClient()) {

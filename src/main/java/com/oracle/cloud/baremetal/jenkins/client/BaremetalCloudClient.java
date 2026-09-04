@@ -81,6 +81,18 @@ public interface BaremetalCloudClient extends AutoCloseable {
     List<Image> getImagesList(String compartmentId) throws Exception;
 
     /**
+     * Resolves the image OCID to use from a stored image reference. A display name is
+     * resolved to the newest AVAILABLE image in the compartment; a legacy image OCID is
+     * returned unchanged.
+     *
+     * @param compartmentId the image compartment id
+     * @param imageNameOrOcid stored image display name or legacy image OCID
+     * @return the resolved image OCID, or null if no matching image is found
+     * @throws Exception if an error occurs
+     */
+    String resolveImageId(String compartmentId, String imageNameOrOcid) throws Exception;
+
+    /**
      * Get the shape list
      *
      * @param compartmentId the compartment id
