@@ -23,10 +23,15 @@ import com.oracle.bmc.identity.responses.GetTenancyResponse;
 import com.oracle.bmc.identity.responses.GetUserResponse;
 import com.oracle.bmc.model.BmcException;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 public class SDKBaremetalCloudClientTest {
 
@@ -44,6 +49,7 @@ public class SDKBaremetalCloudClientTest {
     @Before
     public void setUp() {
         MockitoAnnotations.openMocks(this);
+        SDKBaremetalCloudClient.clearImageResolutionCache();
         client = new SDKBaremetalCloudClient(provider, "us-phoenix-1", 10, "tenancyId", "userId");
     }
 
@@ -166,5 +172,101 @@ public class SDKBaremetalCloudClientTest {
         doReturn(asyncClient).when(spyClient).getComputeAsyncClient();
 
         return spyClient.resolveImageId("ocid1.compartment.oc1..aaa", displayName);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    public void testResolveImageIdByNameIsCached() throws Exception {
+        Image img = Image.builder()
+                .id("ocid1.image.oc1.phx.aaaaaaaacached")
+                .displayName("cached-image")
+                .build();
+        ComputeAsyncClient asyncClient = mock(ComputeAsyncClient.class);
+        ListImagesResponse listImagesResponse = mock(ListImagesResponse.class);
+        Future<ListImagesResponse> future = mock(Future.class);
+        when(listImagesResponse.getItems()).thenReturn(Arrays.asList(img));
+        when(future.get()).thenReturn(listImagesResponse);
+        when(asyncClient.listImages(any(ListImagesRequest.class), any())).thenReturn(future);
+
+        SDKBaremetalCloudClient spyClient = spy(client);
+        doReturn(asyncClient).when(spyClient).getComputeAsyncClient();
+
+        String first = spyClient.resolveImageId("ocid1.compartment.oc1..aaa", "cached-image");
+        String second = spyClient.resolveImageId("ocid1.compartment.oc1..aaa", "cached-image");
+
+        assertEquals("ocid1.image.oc1.phx.aaaaaaaacached", first);
+        assertEquals("ocid1.image.oc1.phx.aaaaaaaacached", second);
+        verify(asyncClient, times(1)).listImages(any(ListImagesRequest.class), any());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    public void testResolveImageIdByNameRetriesOnTooManyRequests() throws Exception {
+        Image img = Image.builder()
+                .id("ocid1.image.oc1.phx.aaaaaaaaretry")
+                .displayName("retry-image")
+                .build();
+        ComputeAsyncClient asyncClient = mock(ComputeAsyncClient.class);
+
+        Future<ListImagesResponse> throttled = mock(Future.class);
+        BmcException tooMany = new BmcException(429, "TooManyRequests", "throttled", "req-id");
+        when(throttled.get()).thenThrow(new java.util.concurrent.ExecutionException(tooMany));
+
+        ListImagesResponse okResponse = mock(ListImagesResponse.class);
+        when(okResponse.getItems()).thenReturn(Arrays.asList(img));
+        Future<ListImagesResponse> okFuture = mock(Future.class);
+        when(okFuture.get()).thenReturn(okResponse);
+
+        when(asyncClient.listImages(any(ListImagesRequest.class), any()))
+                .thenReturn(throttled)
+                .thenReturn(okFuture);
+
+        SDKBaremetalCloudClient spyClient = spy(client);
+        doReturn(asyncClient).when(spyClient).getComputeAsyncClient();
+
+        String resolved = spyClient.resolveImageId("ocid1.compartment.oc1..aaa", "retry-image");
+
+        assertEquals("ocid1.image.oc1.phx.aaaaaaaaretry", resolved);
+        verify(asyncClient, times(2)).listImages(any(ListImagesRequest.class), any());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    public void testConcurrentResolvesCoalesceToSingleListImages() throws Exception {
+        Image img = Image.builder()
+                .id("ocid1.image.oc1.phx.aaaaaaaasingleflight")
+                .displayName("burst-image")
+                .build();
+        ListImagesResponse listImagesResponse = mock(ListImagesResponse.class);
+        when(listImagesResponse.getItems()).thenReturn(Arrays.asList(img));
+
+        int threadCount = 10;
+        CountDownLatch allStarted = new CountDownLatch(threadCount);
+        ComputeAsyncClient asyncClient = mock(ComputeAsyncClient.class);
+        Future<ListImagesResponse> future = mock(Future.class);
+        // Block the single lookup until every thread has entered resolve, forcing them to coalesce.
+        when(future.get()).thenAnswer(inv -> {
+            allStarted.await(5, TimeUnit.SECONDS);
+            return listImagesResponse;
+        });
+        when(asyncClient.listImages(any(ListImagesRequest.class), any())).thenReturn(future);
+
+        SDKBaremetalCloudClient spyClient = spy(client);
+        doReturn(asyncClient).when(spyClient).getComputeAsyncClient();
+
+        ExecutorService pool = Executors.newFixedThreadPool(threadCount);
+        List<Future<String>> results = new ArrayList<>();
+        for (int i = 0; i < threadCount; i++) {
+            results.add(pool.submit(() -> {
+                allStarted.countDown();
+                return spyClient.resolveImageId("ocid1.compartment.oc1..aaa", "burst-image");
+            }));
+        }
+        for (Future<String> r : results) {
+            assertEquals("ocid1.image.oc1.phx.aaaaaaaasingleflight", r.get());
+        }
+        pool.shutdown();
+
+        verify(asyncClient, times(1)).listImages(any(ListImagesRequest.class), any());
     }
 }
